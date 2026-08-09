@@ -2,7 +2,7 @@
 title: 'ft_transcendence'
 summary: 'Real-time multiplayer Pong platform. I built the backend: Fastify REST API, JWT sessions with TOTP two-factor, SQLite persistence, friends, tournaments and match history.'
 domain: web
-tech: ['TypeScript', 'Fastify', 'SQLite', 'Docker', 'nginx']
+tech: ['JavaScript', 'Fastify', 'SQLite', 'JWT']
 context: '42'
 team: team
 period: '2026-03'
@@ -15,6 +15,64 @@ links:
   repo: 'https://github.com/tomjoy75/ft-transcendence-portfolio'
 ---
 
-Team project. This entry covers my contribution: the backend API and its data model.
+ft_transcendence is the last project of the 42 core curriculum: a single-page application
+built around real-time multiplayer Pong, with accounts, friends, tournaments and match
+history around it. It was built by a team of four, each of us owning a distinct area. Mine
+was the backend — the REST API, its data model, and the authentication in front of both.
 
-First full case study to be written — its existing README is roughly 80% of the text.
+The system runs as containers behind nginx, which terminates TLS and splits traffic three
+ways: REST calls to the Fastify API, WebSocket traffic to the real-time Pong service, and a
+route to Grafana. The Pong service belonged to one teammate and the containerisation and
+monitoring stack to another; what concerned me was the boundary between us. The API never
+touches a frame of gameplay — the Pong service plays the match and posts the result back, so
+persistence has exactly one entry point.
+
+The API is roughly 2,000 lines of ESM JavaScript over SQLite, organised as domain route
+modules — public, private, friendships, tournaments, matches — with cross-cutting concerns
+registered as Fastify plugins. Two parts are worth describing properly.
+
+## Users who are half authenticated
+
+With two-factor enabled, login cannot return a session token. The password is correct, but
+the second factor has not been presented, so the user is neither anonymous nor
+authenticated. Every protected endpoint has to refuse them — except the one endpoint that
+completes the flow.
+
+I put that state in the token itself. Login signs either a normal JWT or, when the account
+has 2FA enabled, a temporary one carrying a `twofa_pending` claim. A single plugin decorates
+the request lifecycle: verify the signature, then, if the pending claim is present and the
+request is not for `/2fa/verify-login`, return 403. The rule lives in one place instead of
+being restated in every route, and there is no server-side session store to keep consistent
+with it.
+
+The trade-off is that a half-authenticated state is now a bearer token the client holds, so
+it can only be revoked by expiry. I gave that token five hours — far longer than the flow it
+guards needs. A few minutes is the right number, and it is the first thing I would change.
+
+## A bracket is a data structure, not a loop
+
+Tournaments accept any number of players, so the bracket has to absorb sizes that are not
+powers of two. Starting a tournament computes `ceil(log2(n))` rounds, pads the entry list
+with nulls up to the next power of two, and then writes the **entire** bracket to the
+database before a single point is played — every future match row created empty, each one
+holding `parent_match1_id` and `parent_match2_id` pointers to the two matches that feed it.
+
+Reporting a result then means writing scores to one row and promoting the winner into the
+parent. No round-generation step, no recomputing the shape from match history, and the
+frontend can draw the whole bracket immediately because it already exists. The cost is rows
+for matches that may never be played, and byes that have to be handled as real nulls rather
+than skipped. I would make the same call again: the shape of a tournament is fixed the
+moment it starts, so storing it is more honest than deriving it repeatedly.
+
+Elsewhere the work was less interesting but not less necessary — bcrypt password hashing,
+regex validation for email and password rules returning 422 rather than a generic failure,
+constraint violations translated into specific 409s (`username already taken` versus `email
+already taken`), avatar uploads capped at 2 MB with the multipart error mapped to a 413, and
+a small `sendError` decorator so every failure leaves the API in the same shape.
+
+Where Fract-ol was one person and one loop, this was four application services, four people,
+and an interface I could not change unilaterally. I worked most closely with the teammate
+building the frontend: every endpoint I shaped was one they had to consume, so status codes
+and error shapes were a negotiation rather than my decision. With the other two — the game
+service and the deployment stack — the contract was the network itself, which is a stricter
+kind of agreement. That constraint, not the feature list, is what the project taught me.
