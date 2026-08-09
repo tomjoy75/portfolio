@@ -1,0 +1,119 @@
+---
+/**
+ * The shared page shell: sidebar rail + main column.
+ * Every route renders through this, so the identity fast-path is always present.
+ */
+import { getCollection } from 'astro:content';
+import { DOMAINS, isRunnable, type Domain } from '../lib/taxonomy';
+import { site } from '../site.config';
+import Sidebar from '../components/Sidebar.astro';
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = site.meta.title, description = site.meta.description } = Astro.props;
+
+// Facet counts are derived from content, never hand-maintained.
+const all = await getCollection('projects');
+const domainCounts = DOMAINS.map((domain: Domain) => ({
+  domain,
+  count: all.filter((p) => p.data.domain === domain).length,
+})).filter((d) => d.count > 0);
+const runnableCount = all.filter((p) => isRunnable(p.data.demo.type)).length;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <div class="shell">
+      <Sidebar domainCounts={domainCounts} runnableCount={runnableCount} />
+
+      <main id="main" class="main">
+        <div class="inner">
+          <slot />
+
+          <footer class="foot">
+            {site.availability} — <a href={site.links.email}>get in touch</a>.
+          </footer>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
+
+<style>
+  .shell {
+    display: grid;
+    grid-template-columns: var(--rail-width) 1fr;
+    min-height: 100vh;
+    align-items: start;
+  }
+
+  /*
+    Grid items default to min-width:auto and refuse to shrink below their content,
+    which lets a wide table push the page sideways. Opt out explicitly.
+  */
+  .shell > :global(*) {
+    min-width: 0;
+  }
+
+  .main {
+    padding: 0 0 90px;
+  }
+
+  .inner {
+    padding: 0 44px;
+    max-width: var(--content-max);
+  }
+
+  .foot {
+    padding: 56px 0 0;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+
+  .skip {
+    position: absolute;
+    left: -9999px;
+  }
+  .skip:focus {
+    left: 8px;
+    top: 8px;
+    z-index: 10;
+    background: var(--card);
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+  }
+
+  @media (max-width: 1180px) {
+    .inner {
+      padding: 0 30px;
+    }
+  }
+
+  @media (max-width: 940px) {
+    .shell {
+      grid-template-columns: 1fr;
+    }
+    .inner {
+      padding: 0 22px;
+    }
+  }
+</style>

@@ -1,0 +1,168 @@
+---
+/**
+ * A featured project, deliberately decompressed: dedicated media space, full
+ * description, room to breathe. These must not read as rows in a database.
+ * DIRECTION.md 4.5.
+ */
+import type { CollectionEntry } from 'astro:content';
+import { DOMAIN_LABELS, isRunnable } from '../lib/taxonomy';
+import DemoBadge from './DemoBadge.astro';
+import TechTags from './TechTags.astro';
+
+interface Props {
+  project: CollectionEntry<'projects'>;
+}
+
+const { project } = Astro.props;
+const { title, summary, domain, tech, context, team, period, demo, cover } = project.data;
+const runnable = isRunnable(demo.type);
+const contextLabel = context === '42' ? '42' : context === 'professional' ? 'Professional' : 'Personal';
+---
+
+<article class="featured">
+  <a class="media-link" href={`/projects/${project.id}`} tabindex="-1" aria-hidden="true">
+    <div class:list={['media', runnable && 'runnable']}>
+      {cover && <img src={cover} alt="" loading="lazy" />}
+      {!cover && demo.type !== 'wasm' && <span class="media-todo">Media pending</span>}
+      {
+        demo.type === 'wasm' && (
+          <span class="play" aria-hidden="true">
+            <svg viewBox="0 0 10 10">
+              <path d="M1 0l8 5-8 5z" />
+            </svg>
+          </span>
+        )
+      }
+    </div>
+  </a>
+
+  <div class="body">
+    <div class="head">
+      <h3><a href={`/projects/${project.id}`}>{title}</a></h3>
+      <DemoBadge type={demo.type} label={demo.label} />
+    </div>
+
+    <p class="summary">{summary}</p>
+
+    <div class="metaline">
+      <span class="meta">{DOMAIN_LABELS[domain]}</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <TechTags tech={tech} />
+      <span class="sep" aria-hidden="true">·</span>
+      <span class="meta">{contextLabel} · {team} · {period}</span>
+    </div>
+  </div>
+</article>
+
+<style>
+  .featured {
+    display: grid;
+    grid-template-columns: 216px 1fr;
+    gap: 28px;
+    align-items: start;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .media-link {
+    display: block;
+  }
+
+  .media {
+    aspect-ratio: 16 / 10;
+    border-radius: 7px;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Placeholder state — must not survive to launch. DIRECTION.md 4.5. */
+  .media-todo {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .media.runnable {
+    border-color: var(--live-line);
+    background: var(--live-soft);
+  }
+
+  .play {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--live);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .play svg {
+    width: 12px;
+    height: 12px;
+    fill: #fff;
+    margin-left: 2px;
+  }
+
+  .head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  h3 {
+    font-size: 21px;
+    letter-spacing: -0.024em;
+  }
+  h3 a {
+    text-decoration: none;
+  }
+  h3 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  .summary {
+    margin: 10px 0 14px;
+    font-size: 15px;
+    color: var(--ink-2);
+    line-height: 1.58;
+    max-width: 62ch;
+  }
+
+  .metaline {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .sep {
+    color: var(--rule);
+  }
+
+  @media (max-width: 940px) {
+    .featured {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .media-link {
+      max-width: 320px;
+    }
+  }
+</style>

@@ -1,0 +1,281 @@
+---
+/**
+ * Persistent identity rail on desktop; compact top header below --breakpoint-rail.
+ * Carries the recruiter fast-path: who, where, availability, CV, links.
+ * CV is the only solid button on the page. DIRECTION.md 4.2.
+ */
+import { site } from '../site.config';
+import { DOMAIN_LABELS, type Domain } from '../lib/taxonomy';
+
+interface Props {
+  domainCounts: { domain: Domain; count: number }[];
+  runnableCount: number;
+}
+
+const { domainCounts, runnableCount } = Astro.props;
+---
+
+<aside class="rail">
+  <div class="identity">
+    <div class="who">
+      <img class="portrait" src={site.portrait} alt="" width="52" height="52" />
+      <div>
+        <p class="name">{site.name}</p>
+        <p class="role">{site.role}</p>
+        <p class="location">{site.location}</p>
+      </div>
+    </div>
+
+    <p class="availability">{site.availability}</p>
+
+    <div class="actions">
+      <a class="cv" href={site.cv}>
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M5 0h2v6l2.5-2.5 1.4 1.4L6 10 1.1 4.9l1.4-1.4L5 6z"></path>
+          <path d="M0 11h12v1H0z"></path>
+        </svg>
+        Curriculum vitae
+      </a>
+
+      <nav class="links" aria-label="Profiles">
+        <a href={site.links.github}>GitHub</a>
+        <a href={site.links.linkedin}>LinkedIn</a>
+        <a href={site.links.email}>Email</a>
+      </nav>
+    </div>
+  </div>
+
+  <nav class="facets" aria-label="Browse by domain">
+    <p class="meta facet-title">Browse by domain</p>
+    <ul class="facet-list">
+      {
+        domainCounts.map(({ domain, count }) => (
+          <li class="facet">
+            <a href={`/projects?domain=${domain}`}>
+              <span class="dot" aria-hidden="true" />
+              {DOMAIN_LABELS[domain]}
+              <span class="count">{count}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+
+  <nav class="facets runnable-facet" aria-label="Interactive projects">
+    <p class="meta facet-title">Try in the browser</p>
+    <ul class="facet-list">
+      <li class="facet">
+        <a href="/projects?runnable=1">
+          <span class="dot on" aria-hidden="true"></span>
+          Runnable here
+          <span class="count">{runnableCount}</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</aside>
+
+<style>
+  .rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: auto;
+    padding: 36px 28px;
+    border-right: 1px solid var(--rule);
+    background: var(--card);
+  }
+
+  .who {
+    display: flex;
+    gap: 13px;
+    align-items: flex-start;
+  }
+
+  /* Small, restrained. Not a hero portrait. */
+  .portrait {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--sunk);
+    flex: none;
+  }
+
+  .name {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 660;
+    letter-spacing: -0.022em;
+  }
+
+  .role,
+  .location {
+    margin: 3px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .role {
+    color: var(--ink-2);
+  }
+  .location {
+    color: var(--muted);
+  }
+
+  .availability {
+    margin: 18px 0 0;
+    font-size: 13px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    padding-left: 12px;
+    border-left: 2px solid var(--rule);
+  }
+
+  /* Primary action. The only solid button in the interface. */
+  .cv {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    background: var(--ink);
+    color: var(--paper);
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 580;
+    padding: 10px 16px;
+    border-radius: 6px;
+  }
+  .cv:hover {
+    opacity: 0.86;
+  }
+  .cv svg {
+    width: 11px;
+    height: 11px;
+    fill: currentColor;
+  }
+
+  /* Secondary: editorial links, not stacked buttons. */
+  .links {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 13.5px;
+  }
+  .links a {
+    color: var(--ink-2);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 1px;
+  }
+  .links a:hover {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+  }
+
+  .facets {
+    margin-top: 34px;
+  }
+  .facet-title {
+    display: block;
+    margin: 0 0 10px;
+  }
+  .facet-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .facet a {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 8px;
+    margin: 0 -8px;
+    border-radius: 5px;
+    font-size: 13.5px;
+    color: var(--ink-2);
+    text-decoration: none;
+  }
+  .facet a:hover {
+    background: var(--sunk);
+    color: var(--ink);
+  }
+  .count {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rule);
+    flex: none;
+  }
+  /* Teal here is semantic: these are the runnable ones. */
+  .dot.on {
+    background: var(--live);
+  }
+
+  /* --- Below the breakpoint the rail becomes a compact top header. --- */
+  @media (max-width: 940px) {
+    .rail {
+      position: static;
+      height: auto;
+      overflow: visible;
+      border-right: 0;
+      border-bottom: 1px solid var(--rule);
+      padding: 18px 22px;
+    }
+    .identity {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .availability {
+      display: none;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .cv,
+    .links {
+      margin-top: 0;
+    }
+    .facets {
+      margin-top: 16px;
+    }
+    .facet-title {
+      display: none;
+    }
+    .runnable-facet {
+      display: none;
+    }
+    /* Facets become a horizontally scrolling chip row. */
+    .facet-list {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      min-width: 0;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .facet a {
+      margin: 0;
+      border: 1px solid var(--rule);
+      border-radius: 100px;
+      padding: 5px 12px;
+      white-space: nowrap;
+    }
+    .count {
+      margin-left: 4px;
+    }
+  }
+</style>

@@ -1,0 +1,114 @@
+---
+/**
+ * Minimal project page. Exists so homepage links resolve — the case-study
+ * presentation (media, demo embeds) is a later step.
+ */
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import DemoBadge from '../../components/DemoBadge.astro';
+import ProjectDemo from '../../components/ProjectDemo.astro';
+import TechTags from '../../components/TechTags.astro';
+import { DOMAIN_LABELS } from '../../lib/taxonomy';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map((project) => ({ params: { slug: project.id }, props: { project } }));
+}
+
+const { project } = Astro.props;
+const { Content } = await render(project);
+const { title, summary, domain, tech, context, team, period, demo, links } = project.data;
+---
+
+<BaseLayout title={`${title} — Thomas Joyeux`} description={summary}>
+  <article class="project">
+    <p class="meta back"><a href="/">← All projects</a></p>
+
+    <div class="head">
+      <h1>{title}</h1>
+      <DemoBadge type={demo.type} label={demo.label} />
+    </div>
+
+    <p class="summary">{summary}</p>
+
+    <div class="metaline">
+      <span class="meta">{DOMAIN_LABELS[domain]}</span>
+      <TechTags tech={tech} />
+      <span class="meta">{context} · {team} · {period}</span>
+    </div>
+
+    <ProjectDemo project={project} />
+
+    {
+      links.repo && (
+        <p class="repo">
+          <a href={links.repo}>View the repository</a>
+        </p>
+      )
+    }
+
+    <div class="prose">
+      <Content />
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  /* No measure here — the demo is wider than prose. Constrain the text instead. */
+  .project {
+    padding: 56px 0 0;
+  }
+
+  h1,
+  .summary,
+  .metaline,
+  .prose {
+    max-width: 68ch;
+  }
+
+  .back {
+    margin: 0 0 28px;
+  }
+  .back a {
+    text-decoration: none;
+  }
+
+  .head {
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    letter-spacing: -0.03em;
+  }
+
+  .summary {
+    margin: 18px 0 16px;
+    font-size: 17px;
+    color: var(--ink-2);
+    line-height: 1.6;
+  }
+
+  .metaline {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .repo {
+    margin: 20px 0 0;
+    font-size: 14.5px;
+  }
+
+  .prose {
+    margin-top: 28px;
+    color: var(--ink-2);
+    line-height: 1.68;
+  }
+</style>

@@ -1,0 +1,61 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Hero from '../components/Hero.astro';
+import FeaturedProject from '../components/FeaturedProject.astro';
+import CatalogueTable from '../components/CatalogueTable.astro';
+
+const all = await getCollection('projects');
+
+const featured = all
+  .filter((p) => p.data.featured)
+  .sort((a, b) => (a.data.featuredOrder ?? Infinity) - (b.data.featuredOrder ?? Infinity));
+
+const catalogue = all
+  .filter((p) => !p.data.featured)
+  .sort((a, b) => b.data.period.localeCompare(a.data.period));
+---
+
+<BaseLayout>
+  <Hero eyebrow="Software Engineer · selected work 2023–2026" />
+
+  <section class="section">
+    <div class="section-head">
+      <h2>Featured work</h2>
+      <span class="meta">{featured.length} written up in full</span>
+    </div>
+    {featured.map((project) => <FeaturedProject project={project} />)}
+  </section>
+
+  <section class="section catalogue">
+    <div class="section-head">
+      <h2>Everything else</h2>
+      <span class="meta">{catalogue.length} projects</span>
+    </div>
+    <CatalogueTable projects={catalogue} />
+  </section>
+</BaseLayout>
+
+<style>
+  .section {
+    padding: 56px 0 0;
+  }
+
+  .catalogue {
+    margin-top: 4px;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+</style>

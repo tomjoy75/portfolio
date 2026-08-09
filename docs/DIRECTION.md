@@ -1,6 +1,7 @@
 # Portfolio — Product & Technical Direction
 
-Status: **decided, not yet built.** No production code exists. Next action is the Fract-ol WASM spike (§6.3).
+Status: **in build.** Fract-ol WASM spike passed (§6.3). Astro shell and content model exist.
+Next action is integrating the Fract-ol demo into the site (§8, build order step 3).
 
 Derived from a structured interview (24 questions, 4 rounds) plus direct inspection of 59 public
 GitHub repositories under `tomjoy75`.
@@ -162,16 +163,66 @@ pasted, and create a rewriting chore.
 
 ## 4. Visual / UX decisions
 
-- **Clean and minimal.** Restrained typography, near-monochrome, fast. The interactive demos supply
-  the personality and the colour.
-- Explicitly rejected: the terminal/mono aesthetic (a cliché in this cohort) and a heavily crafted
-  visual identity (weeks of work, and it signals "frontend designer" against the stated positioning).
-- The current profile README — typing-SVG banner, ~30 shield badges — is the anti-pattern this must
-  beat.
-- Homepage: positioning line, featured cards, links, CV. Parseable by a non-technical reader in ~40s.
-- Mobile-legible. Accessible. Fast with no obvious performance problems — **no hard Lighthouse score
-  gate**; publication is not delayed to chase a number.
+**Chosen direction: variant D** — validated in `prototypes/homepage-prototype.html?variant=D`
+(see §5.5 on that file's status). D combines a persistent sidebar shell with a
+positioning-led hero. Variants A, B and C were explored and rejected.
+
+### 4.1 Principles
+
+- **Clean and minimal.** Restrained typography, near-monochrome, fast. The projects and the
+  interactive demos supply the personality — not decorative UI.
+- Explicitly rejected: the terminal/mono aesthetic (a cliché in this cohort), the dashboard/admin
+  aesthetic, decorative gradients, and motion without functional meaning.
+- The current GitHub profile README — typing-SVG banner, ~30 shield badges — is the anti-pattern
+  this must beat.
+- Mobile-legible. Accessible. Fast with no obvious performance problems — **no hard Lighthouse
+  score gate**; publication is not delayed to chase a number.
 - Not in v1: dark-mode toggle, search, blog, i18n.
+
+### 4.2 Layout — the chosen shell
+
+- **Persistent sidebar on desktop.** Identity and the recruiter fast-path stay on screen at all
+  times rather than scrolling away.
+- **Sidebar collapses into a compact top header on smaller screens.** Identity left, CV and links
+  right; domain facets become a horizontally scrolling chip row.
+- **CV is the primary action** — the one solid button in the interface.
+- **GitHub / LinkedIn / Email are secondary editorial links** — underlined text, not stacked
+  buttons. The sidebar must not read as an admin panel.
+- **Portrait photo** as a small, restrained identity element in the sidebar/header. It humanises
+  the page; it is **not** a large hero portrait and must not compete with the project-first layout.
+  Canonical path `public/images/profile/thomas.jpg`.
+
+### 4.3 Hero
+
+- **Large, positioning-led hero** built on: *"I work close to the machine and close to the product."*
+  This is the visual anchor of the page, not a small heading above a table.
+- **The first featured project may begin below the fold.** The hero is allowed to carry the first
+  impression — that trade was made deliberately when D was chosen.
+
+### 4.4 Colour semantics — teal is strict
+
+One accent, derived from the turquoise in Fract-ol's `get_color_psyche` palette
+(`srcs/graphics.c`, `72,209,204`), darkened for contrast. It carries exactly one meaning:
+
+- **Allowed:** emphasis on *"close to the machine"* in the positioning statement.
+- **Allowed:** on project UI, teal means **runnable / interactive** — a `wasm` or `embed` demo.
+- **Forbidden:** generic decorative teal. No teal borders, dividers, hovers, icons or headings that
+  do not mean "you can run this."
+
+Everything else is greyscale. A visitor should be able to learn the colour's meaning once and
+trust it everywhere.
+
+### 4.5 Project presentation
+
+- **Featured projects are visually decompressed** — dedicated media space, full description, room
+  to breathe. They must read as important, not as pinned rows in a database.
+- **Featured media must be real** — screenshots, recordings or purpose-built visuals. **Empty
+  placeholder boxes are not acceptable at launch**; D leans on these images harder than the other
+  variants did. This raises the stakes on the §3.4 media inventory.
+- **The catalogue stays compact, dense, scalable and filterable** — a table/index that absorbs new
+  projects without a redesign.
+- **No machine → system → service → product depth model.** Variant C's depth axis was rejected;
+  `depth` is not part of the project schema (§5.2).
 
 ---
 
@@ -214,12 +265,50 @@ field to fill in for every future project forever. Add one the day it is actuall
 `featured` is a boolean so promoting `cub3d` later is a one-word diff. `featuredOrder` is optional
 and stays unused until ordering matters — never derive order accidentally from filenames or dates.
 
+**No `depth` field.** Variant C's machine → system → service → product model was explored and
+rejected (§4.5): it forces a judgment call per project, and projects like `camagru42` and
+`rag-search-engine` have no defensible position on that axis.
+
 ### 5.3 Repository layout
 
 - Portfolio site + content + **vendored WASM artifacts** in this repository.
 - Fract-ol C changes live **upstream in the `Fractol` repository, on a dedicated `wasm` branch**.
   `main` keeps the submitted 42 version untouched — it is a graded artifact.
 - Build artifacts are committed, produced by an explicit `Makefile` target in the `Fractol` repo.
+
+```
+src/
+  components/    # sidebar, hero, featured entry, catalogue table, tags
+  layouts/       # shared page shell
+  pages/         # routes
+  content/       # project MDX + collection schema
+  styles/        # tokens + global base
+public/
+  images/profile/    images/projects/    demos/   # vendored WASM later
+docs/            # this document
+prototypes/      # throwaway exploration — see 5.5
+```
+
+### 5.4 Implementation principles
+
+- **Astro-native patterns only.** Layouts for the shared shell, components for repeated UI,
+  content collections + MDX for project content, client-side JS only where interaction genuinely
+  requires it (`client:visible` on the Fract-ol island, and nothing else by default).
+- **Not** an MVC application, **not** a state-management architecture, **not** a backend. This is a
+  mostly-static site and the structure must stay legible to someone opening it in a year.
+- Design tokens live in one stylesheet. Components consume tokens; no hardcoded hex values in
+  component files.
+
+### 5.5 The prototype is throwaway — do not promote it
+
+`prototypes/homepage-prototype.html` is **exploratory code only**. It was written under prototype
+constraints: no tests, no error handling, one file, inline data, duplicated markup across four
+variants.
+
+**It must not be evolved or refactored into production.** The production site is a clean Astro
+reimplementation with a maintainable component and content structure. The prototype's value is the
+*decision* it captured — variant D — not its code. Keep it for reference and comparison; never
+import from it.
 
 ---
 
@@ -268,36 +357,74 @@ up to 800 iterations per pixel, single-threaded scalar — roughly 50–200M dou
 The fix (render on demand behind a dirty flag, rather than every tick) is the "what I would do
 differently" paragraph.
 
-### 6.3 The spike — first action, before any portfolio code
+### 6.3 The spike — ✅ RESOLVED, passed
 
-Purpose: remove the only meaningful technical uncertainty in the concept. No final UI, no polish.
+Completed on the `wasm` branch of the `Fractol` repository (3 commits, clean tree). The abort path
+was never needed; `svg-drawing-timeline` does not have to carry the interactive requirement.
 
-**Success criteria:** ship canvas **800×600**; **≤~100ms per on-demand render** at 200 iterations on
-a mid-range laptop; pan/zoom that feels continuous. The 100ms figure is a spike budget for judging
-viability — *responsive interaction* is the real requirement, not the number as a permanent product gate.
+**Result: 800×600 at 200 iterations, Chrome on an M-series laptop.** Budget was ≤~100ms.
 
-**Escape ladder, in order:** (1) reduce canvas size → (2) scale iteration count by zoom depth →
-(3) progressive/tiled rendering (draw coarse, refine).
+| view | iterations | median render |
+|---|---|---|
+| mandelbrot, default | 200 | **47.1 ms** |
+| julia, default | 200 | 8.2 ms |
+| burning_ship, default | 200 | 58.7 ms |
+| mandelbrot, deep zoom | 757 | 643 ms |
+| same view, clamped preview | 60 | 36.3 ms |
+| `putImageData` | — | 0.10 ms |
 
-**Abort rule:** if the ladder is exhausted without a convincing interactive experience within a
-reasonable spike, **stop**. Fract-ol demotes to `media`, and v1's interactive requirement transfers to
-`embed` (`svg-drawing-timeline`, which needs no port). The WASM port never blocks the portfolio.
+**Escape-ladder rung 2 is in the design, not in reserve:** the demo renders a 60-iteration clamped
+preview during interaction and a full-quality frame ~140ms after input stops. `zoom_in()` ramps
+`nb_iter` toward `MAX_ITER` 800, so deep views cost ~13× the default.
+
+**What was actually built.** Seven original sources compile **unchanged** — `fractals.c`,
+`colors.c`, `graphics.c`, `zoom.c`, `movement.c`, `rendering.c`, `keys.c`. Only `main.c`, `input.c`
+and `render()` are replaced, by ~150 lines of glue in `wasm/fractol_wasm.c`. Two guard edits to the
+originals (`#ifndef` on the window dimensions, `#ifndef __EMSCRIPTEN__` on `render()`). MiniLibX is
+not emulated: `t_img` is plain data, so the glue points `img.addr` at a static buffer.
+Palette selection, panning, the Julia nudges and the five Julia presets all still execute the
+original C, dispatched through `srcs/keys.c` via one `fw_key(int keysym)` export.
+
+**Artifacts:** `wasm/fractol.js` (8.9 KB) + `wasm/fractol.wasm` (18.7 KB) — **27.6 KB total**,
+committed, so the demo runs without emscripten. Rebuild with `sh wasm/build.sh`
+(`emcc -O3 -flto`; `-flto` is worth ~1.7× because it devirtualizes the per-pixel `get_color` and
+per-iteration iteration callback). `W=` / `H=` override the canvas size at build time.
+
+**Public API:** `fw_init`, `fw_render`, `fw_zoom`, `fw_pan_pixels`, `fw_key`, `fw_julia_r`,
+`fw_julia_i`, `fw_iter`, `fw_set_iter`, `fw_zoom_level`.
+
+⚠️ **The `wasm` branch is local only** — `origin` has just `main`. Push it before the portfolio
+vendors anything from it.
 
 ### 6.4 Fract-ol browser UX
 
-The native controls (arrow keys, keypad F1–F6 palettes, WASD for the Julia constant) are
-undiscoverable on the web and are **not** reproduced out of fidelity. Browser build:
+Implemented in the spike: cursor-centred wheel zoom, drag to pan, arrow-key stepping, palettes,
+Julia nudges and presets, and `?c=real,imag` to open Julia on a given constant.
 
-- cursor-centred wheel zoom; drag to pan
-- discoverable fractal selector (Mandelbrot / Julia / Burning Ship)
-- palette buttons; iteration control
-- draggable `c` point for Julia
-- **click-to-start behind a static preview image** — the module is a few hundred KB and the first
-  frame costs real compute; autoplay would damage mobile page load
-- static preview image is also the fallback for no-WASM and reduced-motion
-- **no pinch-zoom on mobile in v1** — tap-to-zoom only
+**Two deliberate divergences from the original X11 UX**, both forced and both worth a paragraph in
+the case study:
 
-Adapting a keyboard-native interaction model to the web is itself case-study material.
+- **Palettes moved from F1–F6 to digits 1–6.** F3/F5/F6 are browser-owned and `preventDefault`
+  cannot reliably reclaim them. JS translates digits to the same keysyms, so the C is unchanged.
+- **Key matching uses `event.code`, not `event.key`.** The original resolves keys through
+  `XkbKeycodeToKeysym(..., group 0)` — the *first configured* X layout, ignoring the active one. On
+  AZERTY that scatters W/A/S/D. `event.code` gives one rule and an ergonomic cluster on both layouts.
+
+**Revised: click-to-start is no longer required.** That decision assumed a few-hundred-KB module;
+the real artifacts are **27.6 KB** and the first frame is ~47ms. The demo can initialise on view
+(`client:visible`) without hurting page load. Still keep a **static preview image as the fallback**
+for no-WASM and `prefers-reduced-motion`.
+
+**Still needed before this demo ships** (from the spike's own "not done" list):
+
+- **Touch events** — currently none, so the demo is inert on mobile. This is the largest gap.
+- Canvas resize handling.
+- Colour banding at `iter > MIN_ITER` (the `t_uint8` cast in `get_color_*` wraps).
+- A Web Worker so a deep-zoom full-quality pass cannot block the main thread.
+- Optional: click-drag mini-Mandelbrot picker for the Julia constant; fuller URL view state.
+
+Performance was measured on an M-series laptop only. **Mobile is unmeasured** — worth one check
+before launch, though the iteration clamp already bounds the interactive cost.
 
 ---
 
@@ -332,21 +459,23 @@ v1 ships when all of the following are true:
    `ft_transcendence`, professional work, Fract-ol
    *(the other featured projects — including whichever wins slot 5 — need convincing descriptions
    and real media, not full case studies, at launch)*
-4. **Fract-ol WASM demo working**, with static fallback
-   *(or the §6.3 abort path taken, with `svg-drawing-timeline` carrying the interactive requirement)*
+4. **Fract-ol WASM demo integrated into the site**, with static fallback and working touch input
+   *(the §6.3 spike passed — the rendering core is done; what remains is integration)*
 5. Remaining featured projects have **real media, not placeholders**, and convincing descriptions
 6. Deployed, own domain connected, mobile-legible, accessible, fast — no hard Lighthouse gate
 
 ### Build order
 
-1. **Fract-ol WASM spike** (§6.3) — before a line of portfolio code. It is the only item with genuine
-   technical uncertainty. If it costs far more than expected, that must surface while the plan is
-   still cheap to change.
-2. Media inventory (§3.4) — in parallel; it gates the final featured set.
-3. Astro shell + **one** real case study (`ft_transcendence`).
-4. Remaining content and media.
-5. Final Fract-ol integration and polish.
-6. Domain, deploy.
+1. ~~Fract-ol WASM spike~~ — ✅ **done**, passed (§6.3).
+2. ~~Astro shell~~ — ✅ **done**. Layout, components, content collection, 20 project entries.
+3. **Fract-ol demo integration** — ✅ mostly done. `wasm` branch pushed; artifacts vendored to
+   `public/demos/fractol/`; `FractolDemo` renders on the Fract-ol project page, lazily. **Touch
+   input, a static fallback image and resize handling remain** (§6.4).
+4. Media inventory (§3.4) — in parallel; it gates the final featured set, and variant D has no
+   graceful degradation for missing featured media.
+5. First real case study (`ft_transcendence`), validating the content model against real prose.
+6. Remaining content and media.
+7. Domain, deploy.
 
 ---
 
@@ -356,12 +485,32 @@ In rough priority order:
 
 1. **`svg-drawing-timeline` as `embed`** — ~1h, a second interactive project almost free
 2. **`cub3d` WASM port** — highest wow, highest cost. Needs `.xpm` decoding and texture sampling on
-   top of everything the Fract-ol port establishes. Auto-promotes cub3d to featured
-3. READMEs for `cub3d`, `philosophers`, `push_swap` (currently none)
-4. Dark-mode toggle
-5. CI-built WASM (emsdk in GitHub Actions) — **only** once artifacts are actually rebuilt often enough
+   top of everything the Fract-ol port establishes — and that port is now a proven template, which
+   lowers the risk considerably. Auto-promotes cub3d to featured
+3. Fract-ol demo polish: colour banding fix, Web Worker for deep zooms, mini-Mandelbrot Julia
+   picker, URL-shareable view state (§6.4)
+4. READMEs for `cub3d`, `philosophers`, `push_swap` (currently none)
+5. **Credentials area** — see below
+6. Dark-mode toggle
+7. CI-built WASM (emsdk in GitHub Actions) — **only** once artifacts are actually rebuilt often enough
    to be annoying. Vendored artifacts are correct until then
-6. Search, blog, i18n — only on real demand
+8. Search, blog, i18n — only on real demand
+
+### 9.1 Credentials — idea only, not scheduled
+
+A **very small** area for selected certifications or awards (e.g. AWS). Recorded so it isn't
+forgotten, not planned.
+
+Constraints if it is ever built:
+
+- **The portfolio stays project-first.** Credentials are secondary and must never compete with
+  featured work for position or weight.
+- **Not a CV section.** No education history, no employment timeline — that is what the CV PDF is for.
+- **Not a wall of badges.** The GitHub profile README's ~30 shields is the exact failure mode
+  (§4.1). Plain text, a handful of entries, no vendor logos.
+- Most likely home: a quiet block low in the sidebar, or a short list near the footer. Not the hero,
+  not above the fold, not its own top-level page.
+- **Selected**, not complete. If the list needs a "show more", it is already too long.
 
 ---
 
@@ -370,8 +519,11 @@ In rough priority order:
 | Item | Owner | Blocks |
 |---|---|---|
 | **Slot 5 choice** — 42-binary-security / inception / cub3d (§3.1) | Thomas | Featured set |
+| **Push the `Fractol` `wasm` branch** — local only today | Thomas | Vendoring the demo artifacts |
 | Media inventory (§3.4) | Thomas | Final featured set |
 | NDA / contract review for the professional case study | Thomas | Publishing that case study; `inception` promotion gate |
 | Confirm `thomasjoyeux.dev` checkout price | Thomas | Purchase only — not prototyping |
-| Fract-ol spike outcome | — | Whether Fract-ol is `wasm` or `media` |
+| Real CV PDF at `/thomas-joyeux-cv.pdf`, real contact email | Thomas | Launch |
 | Fix malformed LinkedIn URL in profile README | Thomas | Nothing |
+
+~~Fract-ol spike outcome~~ — ✅ resolved, passed (§6.3).

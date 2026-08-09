@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — portfolio homepage directions</title>
+<!--
+  THROWAWAY UI PROTOTYPE. Not production code. Not Astro.
+  Three homepage variants on one file, switchable via ?variant=A|B|C
+  and the floating bar at the bottom (or ← / → arrow keys).
+
+  Question this answers: what should the portfolio homepage look like?
+  Source of truth for content + constraints: docs/DIRECTION.md
+
+  Shared across variants: design tokens + the PROJECTS data array.
+  NOT shared: layout. Each variant builds its own structure from the same data.
+
+  Content note: name/links/location are placeholder-real. "Paris, France" is an
+  assumption from the tomjoy75 handle — correct it.
+-->
+<style>
+:root{
+  /* Near-monochrome. Accent is the turquoise from Fract-ol's get_color_psyche
+     palette (72,209,204), darkened for contrast. It marks ONE thing: runnable. */
+  --paper:#F5F6F6; --card:#FFFFFF; --sunk:#EEF0F0;
+  --ink:#15181A; --ink2:#3D4448; --muted:#6A7275;
+  --rule:#E0E4E4; --rule-soft:#EBEEEE;
+  --live:#0B7F79; --live-soft:#E4F3F1; --live-line:#9FD7D2;
+  --display:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#0F1213; --card:#161A1B; --sunk:#1B2021;
+    --ink:#ECEFEF; --ink2:#B8C0C1; --muted:#828B8D;
+    --rule:#262C2D; --rule-soft:#1E2324;
+    --live:#54D6CC; --live-soft:#11302E; --live-line:#2A5F5B;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--display);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;padding-bottom:88px;
+}
+a{color:inherit}
+h1,h2,h3{margin:0;font-weight:640;letter-spacing:-.02em;line-height:1.1}
+.variant{display:none}
+.variant.on{display:block}
+:focus-visible{outline:2px solid var(--live);outline-offset:3px;border-radius:2px}
+
+/* ---------- shared atoms (not layout) ---------- */
+.meta{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+.tag{font-family:var(--mono);font-size:11px;color:var(--ink2);background:var(--sunk);
+  padding:2px 7px;border-radius:3px;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+  letter-spacing:.03em;padding:3px 9px;border-radius:100px;white-space:nowrap}
+.pill.run{background:var(--live);color:#fff;font-weight:600}
+.pill.live{background:var(--live-soft);color:var(--live);border:1px solid var(--live-line)}
+.pill.flat{background:transparent;color:var(--muted);border:1px solid var(--rule)}
+.pill svg{width:9px;height:9px;fill:currentColor}
+.btn{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:560;
+  padding:8px 15px;border:1px solid var(--rule);border-radius:6px;background:var(--card);
+  color:var(--ink);text-decoration:none}
+.btn:hover{border-color:var(--ink2)}
+.btn.solid{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* ============================================================
+   VARIANT A — INDEX
+   Projects as an editorial index, not cards. One column, one
+   reading order, demo affordance right-aligned on each row.
+   ============================================================ */
+.a-wrap{max-width:840px;margin:0 auto;padding:0 28px}
+.a-fast{border-bottom:1px solid var(--rule);position:sticky;top:0;background:var(--paper);z-index:5}
+.a-fast .a-wrap{display:flex;gap:18px;align-items:center;justify-content:space-between;
+  padding-top:13px;padding-bottom:13px;flex-wrap:wrap}
+.a-fastid{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.a-fastid b{font-size:14.5px;font-weight:640;letter-spacing:-.01em}
+.a-links{display:flex;gap:8px;flex-wrap:wrap}
+.a-links a{font-size:13px;text-decoration:none;color:var(--ink2);padding:5px 2px;border-bottom:1px solid transparent}
+.a-links a:hover{border-bottom-color:var(--ink2)}
+.a-links a.cv{color:var(--ink);font-weight:600;border-bottom-color:var(--rule)}
+.a-hero{padding:96px 0 72px}
+.a-hero h1{font-size:clamp(2.3rem,5.6vw,3.9rem);letter-spacing:-.035em;font-weight:680;max-width:15ch}
+.a-hero p{margin:26px 0 0;max-width:56ch;font-size:17.5px;color:var(--ink2);line-height:1.62}
+.a-hero .meta{margin-bottom:22px;display:block}
+.a-sechead{display:flex;align-items:baseline;justify-content:space-between;
+  padding-bottom:12px;border-bottom:1px solid var(--ink);margin-bottom:4px}
+.a-row{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start;
+  padding:26px 0;border-bottom:1px solid var(--rule);text-decoration:none;position:relative}
+.a-row:hover{background:linear-gradient(90deg,transparent,var(--rule-soft) 12%,var(--rule-soft) 88%,transparent)}
+.a-row h3{font-size:23px;letter-spacing:-.025em;margin-bottom:7px}
+.a-row p{margin:0 0 12px;color:var(--ink2);font-size:15px;max-width:62ch;line-height:1.55}
+.a-rowmeta{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.a-rowmeta .sep{color:var(--rule);font-size:11px}
+.a-right{display:flex;flex-direction:column;align-items:flex-end;gap:9px;padding-top:4px}
+.a-cat{margin-top:74px}
+.a-catgrid{columns:2;column-gap:38px;margin-top:14px}
+@media(max-width:640px){.a-catgrid{columns:1}}
+.a-catitem{break-inside:avoid;display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  padding:9px 0;border-bottom:1px solid var(--rule-soft);text-decoration:none;font-size:14.5px}
+.a-catitem:hover .n{border-bottom:1px solid var(--ink)}
+.a-catitem .d{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.a-foot{padding:70px 0 90px;color:var(--muted);font-size:13.5px}
+
+/* ============================================================
+   VARIANT B — DATASET
+   App shell. Fixed identity rail. Everything is one filterable
+   table; "featured" is just the pinned top of it. No hunting.
+   ============================================================ */
+.b-shell{display:grid;grid-template-columns:262px 1fr;min-height:100vh;align-items:start}
+@media(max-width:900px){.b-shell{grid-template-columns:1fr}}
+.b-rail{position:sticky;top:0;padding:34px 26px;border-right:1px solid var(--rule);
+  height:100vh;overflow:auto;background:var(--card)}
+@media(max-width:900px){.b-rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--rule)}}
+.b-rail h1{font-size:19px;letter-spacing:-.02em}
+.b-role{margin:7px 0 0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.b-avail{margin-top:16px;padding:10px 12px;background:var(--sunk);border-radius:6px;
+  font-size:12.5px;color:var(--ink2);line-height:1.45}
+.b-actions{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.b-actions .btn{justify-content:center}
+.b-facet{margin-top:30px}
+.b-facet .meta{display:block;margin-bottom:9px}
+.b-facetrow{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;
+  margin:0 -8px;border-radius:5px;font-size:13.5px;cursor:default}
+.b-facetrow:hover{background:var(--sunk)}
+.b-facetrow .c{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.b-facetrow .sw{width:7px;height:7px;border-radius:2px;background:var(--rule);margin-right:9px;flex:none}
+.b-facetrow span.nm{display:flex;align-items:center}
+.b-main{padding:34px 34px 90px;min-width:0}
+@media(max-width:640px){.b-main{padding:24px 18px 90px}}
+.b-mhead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.b-mhead h2{font-size:15px;font-weight:620}
+.b-table{width:100%;border-collapse:collapse;font-size:14px}
+.b-table th{text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted);font-weight:500;padding:0 12px 9px 0;
+  border-bottom:1px solid var(--ink);white-space:nowrap}
+.b-table td{padding:13px 12px 13px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.b-table tr:hover td{background:var(--sunk)}
+.b-table .nm{font-weight:600;letter-spacing:-.01em;display:block}
+.b-table .sm{color:var(--ink2);font-size:13px;margin-top:3px;display:block;max-width:52ch;line-height:1.5}
+.b-feat td{padding-top:17px;padding-bottom:17px}
+.b-feat .nm{font-size:16.5px}
+.b-thumb{width:60px;height:42px;border-radius:4px;background:var(--sunk);
+  border:1px solid var(--rule);flex:none;overflow:hidden}
+.b-cellwrap{display:flex;gap:13px}
+.b-stack{display:flex;gap:5px;flex-wrap:wrap;max-width:190px}
+.b-ctx{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.b-split{margin:34px 0 16px;padding-top:6px;border-top:1px solid var(--rule);
+  display:flex;align-items:baseline;justify-content:space-between}
+@media(max-width:760px){.b-hidesm{display:none}}
+
+/* ============================================================
+   VARIANT C — DEPTH AXIS
+   The positioning sentence, made literal: one vertical scale
+   from machine to product, projects pinned at their real depth.
+   Structural, not navigational — you still click the blocks.
+   ============================================================ */
+.c-wrap{max-width:1080px;margin:0 auto;padding:0 30px}
+.c-top{display:flex;justify-content:space-between;align-items:center;gap:20px;
+  padding:20px 0;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.c-top .who{font-size:15px;font-weight:640;letter-spacing:-.015em}
+.c-top .who small{display:block;font-weight:400;font-size:13px;color:var(--muted);letter-spacing:0}
+.c-hero{padding:84px 0 60px;max-width:60ch}
+.c-hero h1{font-size:clamp(2.1rem,4.8vw,3.3rem);letter-spacing:-.032em;font-weight:680}
+.c-hero h1 em{font-style:normal;color:var(--live)}
+.c-hero p{margin:22px 0 0;font-size:16.5px;color:var(--ink2);line-height:1.62}
+.c-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:30px 0 10px;
+  padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.c-legend .meta{margin-right:2px}
+.c-axis{position:relative;padding:16px 0 0}
+.c-band{display:grid;grid-template-columns:220px 1fr;gap:0;position:relative}
+@media(max-width:760px){.c-band{grid-template-columns:1fr}}
+.c-scale{position:relative;padding:22px 26px 22px 0;text-align:right}
+@media(max-width:760px){.c-scale{text-align:left;padding:22px 0 4px}}
+.c-scale .inner{position:sticky;top:22px}
+.c-scale .lbl{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--ink);display:block}
+.c-scale .dsc{display:block;margin-top:7px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.c-band:hover .c-scale .lbl{color:var(--live)}
+.c-track{border-left:1px solid var(--rule);padding:20px 0 20px 30px;position:relative}
+.c-band:hover .c-track{border-left-color:var(--live)}
+.c-track::before{content:"";position:absolute;left:-4px;top:30px;width:7px;height:7px;
+  border-radius:50%;background:var(--rule)}
+.c-band:hover .c-track::before{background:var(--live)}
+.c-block{display:block;text-decoration:none;background:var(--card);border:1px solid var(--rule);
+  border-radius:8px;padding:18px 20px;margin-bottom:12px;position:relative}
+.c-block:hover{border-color:var(--ink2)}
+.c-block.runnable{border-color:var(--live-line);background:var(--live-soft)}
+.c-block.runnable:hover{border-color:var(--live)}
+.c-bhead{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.c-block h3{font-size:18px;letter-spacing:-.02em}
+.c-block p{margin:8px 0 12px;font-size:14.5px;color:var(--ink2);max-width:60ch;line-height:1.55}
+.c-bmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.c-cat{margin-top:70px;padding-top:26px;border-top:1px solid var(--ink)}
+.c-cathead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:12px}
+.c-chips{display:flex;gap:7px;flex-wrap:wrap;margin:18px 0 22px}
+.c-chip{font-family:var(--mono);font-size:11.5px;padding:5px 11px;border:1px solid var(--rule);
+  border-radius:100px;color:var(--ink2);cursor:default}
+.c-chip:hover{border-color:var(--ink);color:var(--ink)}
+.c-catgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+.c-catcell{padding:13px 15px;border:1px solid var(--rule);border-radius:7px;
+  text-decoration:none;background:var(--card)}
+.c-catcell:hover{border-color:var(--ink2)}
+.c-catcell b{display:block;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.c-catcell .d{font-family:var(--mono);font-size:10.5px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;margin-top:5px;display:block}
+.c-foot{padding:64px 0 90px;color:var(--muted);font-size:13.5px}
+
+/* ============================================================
+   VARIANT D — B's shell + C's first impression
+   Sidebar stays (B). Hero becomes the anchor (C). Featured work
+   gets room to breathe. Catalogue stays dense. No depth axis.
+   ============================================================ */
+.d-shell{display:grid;grid-template-columns:268px 1fr;min-height:100vh;align-items:start}
+/* grid items default to min-width:auto and refuse to shrink below their content —
+   which is what lets a wide table push the whole page sideways. */
+.d-shell > *{min-width:0}
+.d-rail{position:sticky;top:0;height:100vh;overflow:auto;padding:36px 28px;
+  border-right:1px solid var(--rule);background:var(--card)}
+.d-name{font-size:18.5px;font-weight:660;letter-spacing:-.022em}
+.d-role{margin:6px 0 0;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.d-where{font-size:13px;color:var(--muted);margin-top:2px}
+.d-avail{margin-top:18px;font-size:13px;color:var(--ink2);line-height:1.5;
+  padding-left:12px;border-left:2px solid var(--rule)}
+.d-cv{display:inline-flex;align-items:center;gap:8px;margin-top:20px;
+  background:var(--ink);color:var(--paper);text-decoration:none;
+  font-size:13.5px;font-weight:580;padding:10px 16px;border-radius:6px}
+.d-cv:hover{opacity:.86}
+.d-cv svg{width:11px;height:11px;fill:currentColor}
+/* editorial links, not stacked buttons */
+.d-elinks{margin-top:16px;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13.5px}
+.d-elinks a{color:var(--ink2);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:1px}
+.d-elinks a:hover{color:var(--ink);border-bottom-color:var(--ink)}
+.d-facets{margin-top:34px}
+.d-facets .meta{display:block;margin-bottom:10px}
+.d-frow{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:6px 8px;margin:0 -8px;border-radius:5px;font-size:13.5px;color:var(--ink2);cursor:default}
+.d-frow:hover{background:var(--sunk);color:var(--ink)}
+.d-frow .c{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.d-frow .dot{width:6px;height:6px;border-radius:50%;background:var(--rule);
+  display:inline-block;margin-right:9px;flex:none;vertical-align:middle}
+.d-frow .dot.on{background:var(--live)}
+
+.d-main{padding:0 0 90px;min-width:0}
+.d-inner{padding:0 44px;max-width:1140px}
+@media(max-width:1180px){.d-inner{padding:0 30px}}
+
+.d-hero{padding:96px 0 66px;border-bottom:1px solid var(--rule)}
+.d-hero .eyebrow{display:block;margin-bottom:26px}
+.d-hero h1{font-size:clamp(2.15rem,3.9vw,3.35rem);letter-spacing:-.034em;font-weight:690;
+  max-width:19ch;line-height:1.06}
+.d-hero h1 em{font-style:normal;color:var(--live)}
+.d-hero p{margin:28px 0 0;max-width:60ch;font-size:16.5px;color:var(--ink2);line-height:1.62}
+.d-heronote{margin-top:30px;display:inline-flex;align-items:center;gap:10px;
+  font-size:13.5px;color:var(--ink2)}
+
+.d-sec{padding:56px 0 0}
+.d-sechead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  flex-wrap:wrap;margin-bottom:8px}
+.d-sechead h2{font-size:17px;letter-spacing:-.02em}
+
+.d-feat{display:grid;grid-template-columns:216px 1fr;gap:28px;align-items:start;
+  padding:32px 0;border-bottom:1px solid var(--rule);text-decoration:none}
+.d-feat:hover .d-fmedia{border-color:var(--ink2)}
+.d-feat:hover h3{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.d-fmedia{aspect-ratio:16/10;border-radius:7px;background:var(--sunk);
+  border:1px solid var(--rule);position:relative;overflow:hidden}
+.d-fmedia.runnable{border-color:var(--live-line);background:var(--live-soft)}
+.d-fmedia .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:38px;height:38px;border-radius:50%;background:var(--live);
+  display:flex;align-items:center;justify-content:center}
+.d-fmedia .play svg{width:12px;height:12px;fill:#fff;margin-left:2px}
+.d-fbody h3{font-size:21px;letter-spacing:-.024em}
+.d-fbody p{margin:10px 0 14px;font-size:15px;color:var(--ink2);line-height:1.58;max-width:62ch}
+.d-fmeta{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.d-fmeta .sep{color:var(--rule)}
+.d-ftop{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap}
+
+.d-cat{margin-top:60px}
+.d-tablewrap{overflow-x:auto}
+.d-table{width:100%;border-collapse:collapse;font-size:14px}
+.d-table th{text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted);font-weight:500;padding:0 12px 9px 0;
+  border-bottom:1px solid var(--ink);white-space:nowrap}
+.d-table td{padding:11px 12px 11px 0;border-bottom:1px solid var(--rule);vertical-align:middle}
+.d-table tr:hover td{background:var(--sunk)}
+.d-table .nm{font-weight:580;letter-spacing:-.01em}
+.d-stack{display:flex;gap:5px;flex-wrap:wrap}
+.d-foot{padding:56px 0 0;color:var(--muted);font-size:13.5px}
+
+/* --- narrow screens: rail becomes a top header, facets become a chip row --- */
+@media(max-width:940px){
+  .d-shell{grid-template-columns:1fr}
+  .d-rail{position:static;height:auto;overflow:visible;border-right:0;
+    border-bottom:1px solid var(--rule);padding:20px 22px}
+  .d-railtop{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+  .d-avail{display:none}
+  .d-cv{margin-top:0}
+  .d-facets{margin-top:18px}
+  .d-facets .meta{display:none}
+  .d-frowwrap{display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;
+    min-width:0;-webkit-overflow-scrolling:touch}
+  .d-railtop > div:last-child{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .d-elinks{margin-top:0}
+  .d-frow{margin:0;border:1px solid var(--rule);border-radius:100px;padding:5px 12px;white-space:nowrap}
+  .d-inner{padding:0 22px}
+  .d-hero{padding:56px 0 40px}
+  .d-feat{grid-template-columns:1fr;gap:16px}
+  .d-fmedia{max-width:320px}
+  .d-hidesm{display:none}
+}
+
+/* ---------- prototype switcher (deliberately not part of any design) ---------- */
+#sw{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999;
+  display:flex;align-items:center;gap:2px;background:#0B0D0E;color:#fff;
+  border-radius:100px;padding:5px;box-shadow:0 8px 28px rgba(0,0,0,.34);
+  font-family:var(--mono);font-size:12px}
+#sw button{background:transparent;border:0;color:#fff;cursor:pointer;font:inherit;
+  padding:7px 12px;border-radius:100px;line-height:1}
+#sw button:hover{background:#22282A}
+#sw .lab{padding:0 14px;white-space:nowrap;letter-spacing:.02em}
+#sw .lab b{color:#54D6CC;font-weight:600}
+@media print{#sw{display:none}}
+</style>
+</head>
+<body>
+
+<main id="A" class="variant"></main>
+<main id="B" class="variant"></main>
+<main id="C" class="variant"></main>
+<main id="D" class="variant"></main>
+
+<div id="sw" role="group" aria-label="Prototype variant switcher">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="lab"><b id="vk">A</b> <span id="vn"></span></span>
+  <button id="next" aria-label="Next variant">→</button>
+</div>
+
+<script>
+/* ---------------- shared DATA (not layout) ---------------- */
+const ME = {
+  name:"Thomas Joyeux",
+  role:"Software Engineer — backend, systems, cloud",
+  where:"Paris, France",
+  avail:"Open to internships and full-time engineering roles.",
+  cv:"#cv", gh:"https://github.com/tomjoy75", li:"#linkedin", mail:"#email"
+};
+
+// demo: wasm|embed -> accent (touchable). media|diagram|none -> grey.
+const FEATURED = [
+  { name:"Fract-ol", depth:"machine",
+    sum:"The original C renderer — extracted from MiniLibX and compiled to WebAssembly. Zoom, pan and switch fractals right here on the page.",
+    domain:"graphics", tech:["C","WebAssembly","emscripten"], ctx:"42 · solo", year:"2024",
+    demo:"wasm", demoLabel:"Run it here" },
+  { name:"Snow Crash · Rainfall · Override", depth:"machine",
+    sum:"Thirty-nine levels of privilege escalation and binary exploitation, written up in full: ret2libc, format-string writes, heap corruption, shellcode under ptrace.",
+    domain:"security", tech:["C","x86","gdb","Python"], ctx:"42 · solo", year:"2025",
+    demo:"media", demoLabel:"Walkthroughs" },
+  { name:"minishell", depth:"systems",
+    sum:"A Unix shell in C: lexing and parsing, pipes, redirections, heredocs, job signals and a builtin set. Around 100 commits, built with a partner.",
+    domain:"systems", tech:["C","POSIX"], ctx:"42 · team of 2", year:"2025",
+    demo:"media", demoLabel:"Terminal recording" },
+  { name:"ft_transcendence", depth:"backend",
+    sum:"Real-time multiplayer Pong platform. I built the backend: Fastify REST API, JWT sessions with TOTP two-factor, SQLite persistence, friends, tournaments and match history.",
+    domain:"web", tech:["TypeScript","Fastify","SQLite","Docker","nginx"], ctx:"42 · team", year:"2026",
+    demo:"media", demoLabel:"Screens + architecture" },
+  { name:"Professional backend work", depth:"product",
+    sum:"Production engineering: user management, database migrations, a cloud migration and a rework of storage architecture. Presented as sanitised architecture — no private code.",
+    domain:"infra", tech:["Backend","Cloud","SQL"], ctx:"Professional", year:"2024–26",
+    demo:"diagram", demoLabel:"Architecture" }
+];
+
+const CATALOGUE = [
+  { name:"cub3d", domain:"graphics", tech:["C","raycasting"], demo:"media", ctx:"42 · team" },
+  { name:"inception", domain:"infra", tech:["Docker","nginx","MariaDB"], demo:"media", ctx:"42 · solo" },
+  { name:"camagru42", domain:"web", tech:["PHP","SQLite","GD"], demo:"media", ctx:"42 · solo" },
+  { name:"svg-drawing-timeline", domain:"web", tech:["TypeScript","React"], demo:"embed", ctx:"Personal" },
+  { name:"philosophers", domain:"systems", tech:["C","pthreads"], demo:"none", ctx:"42 · solo" },
+  { name:"push_swap", domain:"systems", tech:["C","algorithms"], demo:"none", ctx:"42 · solo" },
+  { name:"libasm", domain:"systems", tech:["x86-64 asm"], demo:"none", ctx:"42 · solo" },
+  { name:"rag-search-engine", domain:"ai", tech:["Python","embeddings"], demo:"none", ctx:"Personal" },
+  { name:"tiny_tickets", domain:"web", tech:["TypeScript","SQLite"], demo:"none", ctx:"Personal" },
+  { name:"Piscine embedded", domain:"systems", tech:["C","ATmega328P"], demo:"media", ctx:"42 · solo" },
+  { name:"cultur_tour", domain:"web", tech:["Python"], demo:"none", ctx:"Personal" },
+  { name:"focus", domain:"systems", tech:["Python","CLI"], demo:"none", ctx:"Personal" },
+  { name:"blackbox", domain:"security", tech:["Python"], demo:"none", ctx:"Personal" },
+  { name:"dev-env", domain:"infra", tech:["Shell"], demo:"none", ctx:"Personal" },
+  { name:"job-skills-analyzer", domain:"ai", tech:["Python","API"], demo:"none", ctx:"Personal" }
+];
+
+const DOMAINS=[["systems","Systems"],["web","Web & product"],["infra","Infra & cloud"],
+               ["security","Security"],["graphics","Graphics"],["ai","AI & data"]];
+const DOMAIN_LABEL=Object.fromEntries(DOMAINS);
+const PLAY='<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 0l8 5-8 5z"/></svg>';
+
+// One rule, three variants: accent === you can touch it.
+function demoPill(demo,label){
+  if(demo==="wasm")  return `<span class="pill run">${PLAY}${label||"Run it here"}</span>`;
+  if(demo==="embed") return `<span class="pill live">${PLAY}${label||"Live"}</span>`;
+  if(demo==="media") return `<span class="pill flat">${label||"Walkthrough"}</span>`;
+  if(demo==="diagram")return `<span class="pill flat">${label||"Architecture"}</span>`;
+  return "";
+}
+const tags = a => a.map(t=>`<span class="tag">${t}</span>`).join("");
+const count = d => FEATURED.filter(p=>p.domain===d).length + CATALOGUE.filter(p=>p.domain===d).length;
+
+/* ================= VARIANT A — INDEX ================= */
+function buildA(el){
+  el.dataset.name="Index";
+  el.innerHTML = `
+  <div class="a-fast">
+    <div class="a-wrap">
+      <div class="a-fastid">
+        <b>${ME.name}</b>
+        <span class="meta">${ME.role} · ${ME.where}</span>
+      </div>
+      <nav class="a-links">
+        <a class="cv" href="${ME.cv}">Curriculum vitae (PDF)</a>
+        <a href="${ME.gh}">GitHub</a><a href="${ME.li}">LinkedIn</a><a href="${ME.mail}">Email</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="a-wrap">
+    <header class="a-hero">
+      <span class="meta">Selected work · 2023–2026</span>
+      <h1>I work close to the machine and close to the product.</h1>
+      <p>C and systems programming at one end, shipped web products and production
+      backends at the other. Previously a professional musician and live-performance
+      administrator, which is where I learned to ship to a date that does not move.
+      One of the projects below runs in this browser.</p>
+    </header>
+
+    <section>
+      <div class="a-sechead">
+        <h2 style="font-size:14px">Featured work</h2>
+        <span class="meta">${FEATURED.length} projects</span>
+      </div>
+      ${FEATURED.map(p=>`
+        <a class="a-row" href="#${p.name}">
+          <div>
+            <h3>${p.name}</h3>
+            <p>${p.sum}</p>
+            <div class="a-rowmeta">
+              <span class="meta">${DOMAIN_LABEL[p.domain]}</span><span class="sep">/</span>
+              ${tags(p.tech)}<span class="sep">/</span>
+              <span class="meta">${p.ctx}</span>
+            </div>
+          </div>
+          <div class="a-right">
+            <span class="meta">${p.year}</span>
+            ${demoPill(p.demo,p.demoLabel)}
+          </div>
+        </a>`).join("")}
+    </section>
+
+    <section class="a-cat">
+      <div class="a-sechead">
+        <h2 style="font-size:14px">Everything else</h2>
+        <span class="meta">${CATALOGUE.length} projects · filter by domain</span>
+      </div>
+      <div class="a-catgrid">
+        ${CATALOGUE.map(p=>`
+          <a class="a-catitem" href="#${p.name}">
+            <span class="n">${p.name}${p.demo==="embed"?' <span style="color:var(--live)">●</span>':""}</span>
+            <span class="d">${p.domain}</span>
+          </a>`).join("")}
+      </div>
+    </section>
+
+    <footer class="a-foot">
+      ${ME.avail} — <a href="${ME.mail}">get in touch</a>.
+    </footer>
+  </div>`;
+}
+
+/* ================= VARIANT B — DATASET ================= */
+function buildB(el){
+  el.dataset.name="Dataset";
+  const row = (p,feat)=>`
+    <tr class="${feat?"b-feat":""}">
+      <td>
+        <div class="b-cellwrap">
+          ${feat?'<div class="b-thumb"></div>':""}
+          <div>
+            <span class="nm">${p.name}</span>
+            ${feat?`<span class="sm">${p.sum}</span>`:""}
+          </div>
+        </div>
+      </td>
+      <td><span class="meta">${DOMAIN_LABEL[p.domain]}</span></td>
+      <td class="b-hidesm"><div class="b-stack">${tags(p.tech)}</div></td>
+      <td class="b-hidesm"><span class="b-ctx">${p.ctx}</span></td>
+      <td>${demoPill(p.demo,p.demoLabel)}</td>
+    </tr>`;
+
+  el.innerHTML = `
+  <div class="b-shell">
+    <aside class="b-rail">
+      <h1>${ME.name}</h1>
+      <p class="b-role">${ME.role}<br>${ME.where}</p>
+      <div class="b-avail">${ME.avail}</div>
+      <div class="b-actions">
+        <a class="btn solid" href="${ME.cv}">Download CV (PDF)</a>
+        <a class="btn" href="${ME.gh}">GitHub</a>
+        <a class="btn" href="${ME.li}">LinkedIn</a>
+        <a class="btn" href="${ME.mail}">Email</a>
+      </div>
+      <div class="b-facet">
+        <span class="meta">Domain</span>
+        ${DOMAINS.map(([k,l])=>`
+          <div class="b-facetrow"><span class="nm"><i class="sw"></i>${l}</span><span class="c">${count(k)}</span></div>`).join("")}
+      </div>
+      <div class="b-facet">
+        <span class="meta">Can be run in-browser</span>
+        <div class="b-facetrow"><span class="nm"><i class="sw" style="background:var(--live)"></i>Interactive</span><span class="c">2</span></div>
+        <div class="b-facetrow"><span class="nm"><i class="sw"></i>Walkthrough only</span><span class="c">6</span></div>
+      </div>
+    </aside>
+
+    <div class="b-main">
+      <div class="b-mhead">
+        <div>
+          <h2 style="font-size:22px;letter-spacing:-.03em">I work close to the machine and close to the product.</h2>
+          <p style="margin:9px 0 0;color:var(--ink2);font-size:15px;max-width:66ch;line-height:1.55">
+            C and systems programming at one end, shipped web products and production backends
+            at the other. Twenty projects, five of them written up in full, one of them running
+            in this browser.</p>
+        </div>
+      </div>
+
+      <div class="b-split" style="border-top:0;margin-top:26px">
+        <h2>Featured</h2><span class="meta">${FEATURED.length} written up in full</span>
+      </div>
+      <table class="b-table">
+        <thead><tr>
+          <th style="width:44%">Project</th><th>Domain</th>
+          <th class="b-hidesm">Stack</th><th class="b-hidesm">Context</th><th>Demo</th>
+        </tr></thead>
+        <tbody>${FEATURED.map(p=>row(p,true)).join("")}</tbody>
+      </table>
+
+      <div class="b-split">
+        <h2>All projects</h2><span class="meta">${CATALOGUE.length} more</span>
+      </div>
+      <table class="b-table">
+        <tbody>${CATALOGUE.map(p=>row(p,false)).join("")}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+/* ================= VARIANT C — DEPTH AXIS ================= */
+function buildC(el){
+  el.dataset.name="Depth axis";
+  const BANDS=[
+    ["machine","Machine","Registers, memory, pixels. Assembly, C, and what happens when a program trusts its input."],
+    ["systems","System","Processes, threads, files, signals. The layer an operating system exposes."],
+    ["backend","Service","APIs, auth, persistence, real-time transport."],
+    ["product","Product","Users, migrations, deployment, the thing that has to keep running."]
+  ];
+  const block = p=>`
+    <a class="c-block ${p.demo==="wasm"||p.demo==="embed"?"runnable":""}" href="#${p.name}">
+      <div class="c-bhead">
+        <h3>${p.name}</h3>
+        ${demoPill(p.demo,p.demoLabel)}
+      </div>
+      <p>${p.sum}</p>
+      <div class="c-bmeta">
+        <span class="meta">${DOMAIN_LABEL[p.domain]}</span>
+        ${tags(p.tech)}
+        <span class="meta">${p.ctx} · ${p.year}</span>
+      </div>
+    </a>`;
+
+  el.innerHTML = `
+  <div class="c-wrap">
+    <div class="c-top">
+      <div class="who">${ME.name}<small>${ME.role} · ${ME.where}</small></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn solid" href="${ME.cv}">CV (PDF)</a>
+        <a class="btn" href="${ME.gh}">GitHub</a>
+        <a class="btn" href="${ME.li}">LinkedIn</a>
+        <a class="btn" href="${ME.mail}">Email</a>
+      </div>
+    </div>
+
+    <header class="c-hero">
+      <h1>I work <em>close to the machine</em> and close to the product.</h1>
+      <p>Most engineers pick an altitude. My work is spread across the whole column —
+      from x86 assembly and buffer overflows up to production backends and a cloud
+      migration. Here it is, arranged by how far down it sits.</p>
+    </header>
+
+    <div class="c-legend">
+      <span class="meta">Legend</span>
+      ${demoPill("wasm","Runs in your browser")}
+      ${demoPill("embed","Live app")}
+      ${demoPill("media","Walkthrough")}
+      ${demoPill("diagram","Architecture only")}
+    </div>
+
+    <div class="c-axis">
+      ${BANDS.map(([k,label,desc])=>{
+        const items=FEATURED.filter(p=>p.depth===k);
+        if(!items.length) return "";
+        return `<div class="c-band">
+          <div class="c-scale"><div class="inner">
+            <span class="lbl">${label}</span>
+            <span class="dsc">${desc}</span>
+          </div></div>
+          <div class="c-track">${items.map(block).join("")}</div>
+        </div>`;
+      }).join("")}
+    </div>
+
+    <section class="c-cat">
+      <div class="c-cathead">
+        <h2 style="font-size:15px">Everything else</h2>
+        <span class="meta">${CATALOGUE.length} projects</span>
+      </div>
+      <div class="c-chips">
+        <span class="c-chip" style="border-color:var(--ink);color:var(--ink)">All</span>
+        ${DOMAINS.map(([k,l])=>`<span class="c-chip">${l} <span style="color:var(--muted)">${count(k)}</span></span>`).join("")}
+      </div>
+      <div class="c-catgrid">
+        ${CATALOGUE.map(p=>`
+          <a class="c-catcell" href="#${p.name}">
+            <b>${p.name} ${p.demo==="embed"?'<span style="color:var(--live)">●</span>':""}</b>
+            <span class="d">${p.domain} · ${p.tech[0]}</span>
+          </a>`).join("")}
+      </div>
+    </section>
+
+    <footer class="c-foot">${ME.avail} — <a href="${ME.mail}">get in touch</a>.</footer>
+  </div>`;
+}
+
+/* ================= VARIANT D — B's shell + C's first impression ================= */
+function buildD(el){
+  el.dataset.name="Sidebar + anchored hero";
+  const DL='<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M5 0h2v6l2.5-2.5 1.4 1.4L6 10 1.1 4.9l1.4-1.4L5 6z"/><path d="M0 11h12v1H0z"/></svg>';
+
+  const feat = p => {
+    const runnable = p.demo==="wasm"||p.demo==="embed";
+    return `
+    <a class="d-feat" href="#${p.name}">
+      <div class="d-fmedia ${runnable?"runnable":""}">
+        ${p.demo==="wasm"?`<span class="play">${PLAY}</span>`:""}
+      </div>
+      <div class="d-fbody">
+        <div class="d-ftop">
+          <h3>${p.name}</h3>
+          ${demoPill(p.demo,p.demoLabel)}
+        </div>
+        <p>${p.sum}</p>
+        <div class="d-fmeta">
+          <span class="meta">${DOMAIN_LABEL[p.domain]}</span><span class="sep">·</span>
+          ${tags(p.tech)}<span class="sep">·</span>
+          <span class="meta">${p.ctx} · ${p.year}</span>
+        </div>
+      </div>
+    </a>`;
+  };
+
+  el.innerHTML = `
+  <div class="d-shell">
+    <aside class="d-rail">
+      <div class="d-railtop">
+        <div>
+          <div class="d-name">${ME.name}</div>
+          <p class="d-role">${ME.role}</p>
+          <div class="d-where">${ME.where}</div>
+          <p class="d-avail">${ME.avail}</p>
+        </div>
+        <div>
+          <a class="d-cv" href="${ME.cv}">${DL} Curriculum vitae</a>
+          <nav class="d-elinks">
+            <a href="${ME.gh}">GitHub</a><a href="${ME.li}">LinkedIn</a><a href="${ME.mail}">Email</a>
+          </nav>
+        </div>
+      </div>
+
+      <div class="d-facets">
+        <span class="meta">Browse by domain</span>
+        <div class="d-frowwrap">
+          ${DOMAINS.map(([k,l])=>`
+            <div class="d-frow"><span><i class="dot"></i>${l}</span><span class="c">${count(k)}</span></div>`).join("")}
+        </div>
+      </div>
+
+      <div class="d-facets d-hidesm">
+        <span class="meta">Try in the browser</span>
+        <div class="d-frowwrap">
+          <div class="d-frow"><span><i class="dot on"></i>Runnable here</span><span class="c">2</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="d-main">
+      <div class="d-inner">
+        <header class="d-hero">
+          <span class="meta eyebrow">Software Engineer · selected work 2023–2026</span>
+          <h1>I work <em>close to the machine</em> and close to the product.</h1>
+          <p>C and systems programming at one end, shipped web products and production
+          backends at the other. Previously a professional musician and live-performance
+          administrator, which is where I learned to ship to a date that does not move.</p>
+          <span class="d-heronote">${demoPill("wasm","Run it here")} One of these compiles my C to WebAssembly and runs on this page.</span>
+        </header>
+
+        <section class="d-sec">
+          <div class="d-sechead">
+            <h2>Featured work</h2>
+            <span class="meta">${FEATURED.length} written up in full</span>
+          </div>
+          ${FEATURED.map(feat).join("")}
+        </section>
+
+        <section class="d-cat">
+          <div class="d-sechead">
+            <h2>Everything else</h2>
+            <span class="meta">${CATALOGUE.length} projects</span>
+          </div>
+          <div class="d-tablewrap">
+          <table class="d-table">
+            <thead><tr>
+              <th style="width:34%">Project</th><th>Domain</th>
+              <th class="d-hidesm">Stack</th><th class="d-hidesm">Context</th><th>Demo</th>
+            </tr></thead>
+            <tbody>
+              ${CATALOGUE.map(p=>`
+                <tr>
+                  <td><a href="#${p.name}" style="text-decoration:none"><span class="nm">${p.name}</span></a></td>
+                  <td><span class="meta">${DOMAIN_LABEL[p.domain]}</span></td>
+                  <td class="d-hidesm"><div class="d-stack">${tags(p.tech)}</div></td>
+                  <td class="d-hidesm"><span class="meta">${p.ctx}</span></td>
+                  <td>${demoPill(p.demo,p.demoLabel)}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+          </div>
+        </section>
+
+        <footer class="d-foot">${ME.avail} — <a href="${ME.mail}">get in touch</a>.</footer>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- switcher ---------------- */
+const KEYS=["A","B","C","D"];
+buildA(document.getElementById("A"));
+buildB(document.getElementById("B"));
+buildC(document.getElementById("C"));
+buildD(document.getElementById("D"));
+
+function show(k){
+  KEYS.forEach(x=>document.getElementById(x).classList.toggle("on",x===k));
+  document.getElementById("vk").textContent=k;
+  document.getElementById("vn").textContent="— "+document.getElementById(k).dataset.name;
+  try{
+    const u=new URL(location.href); u.searchParams.set("variant",k);
+    history.replaceState(null,"",u);
+  }catch(e){ /* file:// — URL just won't update, switching still works */ }
+  window.scrollTo(0,0);
+}
+function cycle(step){
+  const cur=document.getElementById("vk").textContent;
+  show(KEYS[(KEYS.indexOf(cur)+step+KEYS.length)%KEYS.length]);
+}
+document.getElementById("prev").onclick=()=>cycle(-1);
+document.getElementById("next").onclick=()=>cycle(1);
+addEventListener("keydown",e=>{
+  const t=e.target;
+  if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable))return;
+  if(e.key==="ArrowLeft")cycle(-1);
+  if(e.key==="ArrowRight")cycle(1);
+});
+let start="A";
+try{ const q=new URL(location.href).searchParams.get("variant");
+     if(q&&KEYS.includes(q.toUpperCase()))start=q.toUpperCase(); }catch(e){}
+show(start);
+</script>
+</body>
+</html>

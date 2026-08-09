@@ -1,0 +1,21 @@
+---
+title: 'Fract-ol'
+summary: 'The original C renderer — extracted from MiniLibX and compiled to WebAssembly. Zoom, pan and switch fractals right here on the page.'
+domain: graphics
+tech: ['C', 'WebAssembly', 'emscripten']
+context: '42'
+team: solo
+period: '2024-02'
+featured: true
+featuredOrder: 1
+demo:
+  type: wasm
+links:
+  repo: 'https://github.com/tomjoy75/Fractol'
+---
+
+The fractals above are rendered by the same C that drives the native MiniLibX build.
+
+Seven source files compile to WebAssembly unchanged — the maths, the colour palettes, the zoom and pan arithmetic and the key handlers. Only the MiniLibX application layer is replaced, by around 150 lines of glue. Selecting a palette or nudging the Julia constant still executes the original handlers in `srcs/keys.c`; none of those constants are transcribed into JavaScript.
+
+A full write-up is still to come.

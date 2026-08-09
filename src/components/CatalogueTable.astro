@@ -1,0 +1,113 @@
+---
+/**
+ * The dense half of the page. Absorbs new projects without a redesign — this is
+ * where the layout has to stay cheap as the catalogue grows. DIRECTION.md 4.5.
+ */
+import type { CollectionEntry } from 'astro:content';
+import { DOMAIN_LABELS } from '../lib/taxonomy';
+import DemoBadge from './DemoBadge.astro';
+import TechTags from './TechTags.astro';
+
+interface Props {
+  projects: CollectionEntry<'projects'>[];
+}
+
+const { projects } = Astro.props;
+const contextLabel = (c: string) => (c === '42' ? '42' : c === 'professional' ? 'Professional' : 'Personal');
+---
+
+<div class="wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="col-name">Project</th>
+        <th>Domain</th>
+        <th class="wide-only">Stack</th>
+        <th class="wide-only">Context</th>
+        <th>Demo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        projects.map((p) => (
+          <tr>
+            <td>
+              <a class="name" href={`/projects/${p.id}`}>
+                {p.data.title}
+              </a>
+            </td>
+            <td>
+              <span class="meta">{DOMAIN_LABELS[p.data.domain]}</span>
+            </td>
+            <td class="wide-only">
+              <TechTags tech={p.data.tech} />
+            </td>
+            <td class="wide-only">
+              <span class="meta">
+                {contextLabel(p.data.context)} · {p.data.team}
+              </span>
+            </td>
+            <td>
+              <DemoBadge type={p.data.demo.type} label={p.data.demo.label} />
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .wrap {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 500;
+    padding: 0 12px 9px 0;
+    border-bottom: 1px solid var(--ink);
+    white-space: nowrap;
+  }
+
+  .col-name {
+    width: 34%;
+  }
+
+  td {
+    padding: 11px 12px 11px 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+  }
+
+  tr:hover td {
+    background: var(--sunk);
+  }
+
+  .name {
+    font-weight: 580;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+  .name:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  @media (max-width: 940px) {
+    .wide-only {
+      display: none;
+    }
+  }
+</style>

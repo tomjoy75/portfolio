@@ -1,0 +1,447 @@
+---
+/**
+ * The Fract-ol WebAssembly demo.
+ *
+ * Every control routes through `fw_key(int keysym)` into the original
+ * `srcs/keys.c`. Palette values, Julia nudges and presets are the C code's,
+ * not this component's — nothing is transcribed into JavaScript.
+ *
+ * Artifacts live in public/demos/fractol/ and are loaded lazily on first
+ * scroll into view. See that folder's README for how to rebuild them.
+ */
+
+// Compiled into the wasm build (build.sh W/H). Changing these means a rebuild.
+const DEMO_WIDTH = 800;
+const DEMO_HEIGHT = 600;
+---
+
+<section class="demo" data-fractol aria-label="Interactive Fract-ol renderer">
+  <div class="modes" role="group" aria-label="Fractal">
+    <button type="button" data-mode="1" aria-pressed="true">Mandelbrot</button>
+    <button type="button" data-mode="2" aria-pressed="false">Julia</button>
+    <button type="button" data-mode="3" aria-pressed="false">Burning ship</button>
+  </div>
+
+  <div class="stage">
+    <canvas
+      data-canvas
+      width={DEMO_WIDTH}
+      height={DEMO_HEIGHT}
+      tabindex="0"
+      aria-label="Fractal canvas. Scroll to zoom, drag to pan, arrow keys to step."></canvas>
+
+    <p class="status" data-status>
+      <noscript>This demo needs JavaScript and WebAssembly.</noscript>
+      <span data-status-text>Loading the renderer…</span>
+    </p>
+  </div>
+
+  <!--
+    Julia controls. data-key values are X11 keysyms as srcs/keys.c expects them.
+  -->
+  <div class="julia" data-julia hidden>
+    <div class="col">
+      <span class="meta">Julia constant</span>
+      <p class="cval">c = <b data-cval>–</b></p>
+      <div class="pad">
+        <button type="button" data-key="97"><kbd>A</kbd> Re −0.1</button>
+        <button type="button" data-key="100"><kbd>D</kbd> Re +0.1</button>
+        <button type="button" data-key="119"><kbd>W</kbd> Im +0.1</button>
+        <button type="button" data-key="115"><kbd>S</kbd> Im −0.1</button>
+      </div>
+    </div>
+    <div class="col">
+      <span class="meta">Presets</span>
+      <div class="presets">
+        <button type="button" data-key="112" data-preset><kbd>P</kbd> −0.835 − 0.2321i</button>
+        <button type="button" data-key="111" data-preset><kbd>O</kbd> 0.285 + 0i</button>
+        <button type="button" data-key="105" data-preset><kbd>I</kbd> 0.4 + 0.4i</button>
+        <button type="button" data-key="117" data-preset><kbd>U</kbd> 0 + 0.8i</button>
+        <button type="button" data-key="121" data-preset><kbd>Y</kbd> 0.285 + 0.01i</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="hint">
+      Wheel to zoom · drag to pan · click the canvas, then arrows to step and
+      <kbd>1</kbd>–<kbd>6</kbd> for palettes
+    </p>
+    <dl class="stats" data-stats hidden>
+      <dt>render</dt><dd data-ms>–</dd>
+      <dt>iterations</dt><dd data-it>–</dd>
+      <dt>zoom</dt><dd data-zm>–</dd>
+      <dt>quality</dt><dd data-q>–</dd>
+    </dl>
+  </div>
+</section>
+
+<script>
+  const PREVIEW_ITER = 60;
+  const IDLE_MS = 140;
+  const BASE = '/demos/fractol/';
+
+  // X11 keysyms. Arrows and letters are matched on event.code, not event.key:
+  // the original resolves keys through XkbKeycodeToKeysym(..., group 0), i.e.
+  // the first configured X layout, which scatters WASD on AZERTY.
+  const ARROWS: Record<string, number> = {
+    ArrowLeft: 0xff51,
+    ArrowUp: 0xff52,
+    ArrowRight: 0xff53,
+    ArrowDown: 0xff54,
+  };
+  const LETTERS: Record<string, number> = {
+    KeyW: 119, KeyS: 115, KeyA: 97, KeyD: 100,
+    KeyP: 112, KeyO: 111, KeyI: 105, KeyU: 117, KeyY: 121,
+  };
+
+  const trim = (v: number) => v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+
+  function loadRuntime(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = BASE + 'fractol.js';
+      s.onload = () => resolve((window as any).createFractol({ locateFile: (p: string) => BASE + p }));
+      s.onerror = () => reject(new Error('failed to load ' + s.src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function boot(root: HTMLElement) {
+    const $ = <T extends Element>(sel: string) => root.querySelector(sel) as T;
+    const canvas = $<HTMLCanvasElement>('[data-canvas]');
+    const statusEl = $<HTMLElement>('[data-status]');
+    const statusText = $<HTMLElement>('[data-status-text]');
+    const juliaPanel = $<HTMLElement>('[data-julia]');
+    const stats = $<HTMLElement>('[data-stats]');
+
+    loadRuntime()
+      .then((M) => {
+        const W = canvas.width;
+        const H = canvas.height;
+        const ctx = canvas.getContext('2d', { alpha: false })!;
+        let pixels: ImageData | null = null;
+        let idleTimer = 0;
+        let fractalMode = 1;
+
+        statusEl.hidden = true;
+        stats.hidden = false;
+
+        // On-demand only: nothing renders unless state changed.
+        function draw(preview: boolean) {
+          const real = M._fw_iter();
+          if (preview) M._fw_set_iter(Math.min(real, PREVIEW_ITER));
+
+          const t0 = performance.now();
+          const ptr = M._fw_render();
+          const t1 = performance.now();
+
+          if (preview) M._fw_set_iter(real);
+          // Built once: fw_render() returns a static buffer and the build has
+          // no memory growth, so the view never goes stale.
+          if (!pixels) {
+            pixels = new ImageData(new Uint8ClampedArray(M.HEAPU8.buffer, ptr, W * H * 4), W, H);
+          }
+          ctx.putImageData(pixels, 0, 0);
+
+          $<HTMLElement>('[data-ms]').textContent = (t1 - t0).toFixed(1) + ' ms';
+          $<HTMLElement>('[data-it]').textContent = String(Math.round(M._fw_iter()));
+          $<HTMLElement>('[data-zm]').textContent = M._fw_zoom_level().toFixed(1) + '×';
+          $<HTMLElement>('[data-q]').textContent = preview ? 'preview' : 'full';
+        }
+
+        // Cheap frame now, full-quality frame once the user stops.
+        function touch() {
+          draw(true);
+          clearTimeout(idleTimer);
+          idleTimer = window.setTimeout(() => draw(false), IDLE_MS);
+        }
+
+        function syncJulia(pressed: number | null) {
+          if (fractalMode !== 2) return;
+          const im = M._fw_julia_i();
+          $<HTMLElement>('[data-cval]').textContent =
+            `${trim(M._fw_julia_r())} ${im < 0 ? '−' : '+'} ${trim(Math.abs(im))}i`;
+          for (const b of root.querySelectorAll<HTMLElement>('[data-preset]')) {
+            b.setAttribute('aria-pressed', String(b.dataset.key === String(pressed)));
+          }
+        }
+
+        // Single entry point: every control goes through the original handlers.
+        function key(keysym: number) {
+          M._fw_key(keysym);
+          syncJulia(keysym);
+          touch();
+        }
+
+        function setMode(n: number) {
+          fractalMode = n;
+          for (const b of root.querySelectorAll<HTMLElement>('[data-mode]')) {
+            b.setAttribute('aria-pressed', String(b.dataset.mode === String(n)));
+          }
+          juliaPanel.hidden = n !== 2;
+          M._fw_init(n, 0, 0);
+          // Julia opens on preset P, applied by the original handler.
+          if (n === 2) {
+            M._fw_key(112);
+            syncJulia(112);
+          }
+          draw(false);
+        }
+
+        root.addEventListener('click', (e) => {
+          const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-mode],[data-key]');
+          if (!btn) return;
+          if (btn.dataset.mode) setMode(Number(btn.dataset.mode));
+          else key(Number(btn.dataset.key));
+        });
+
+        canvas.addEventListener(
+          'wheel',
+          (e) => {
+            e.preventDefault();
+            const r = canvas.getBoundingClientRect();
+            // Canvas is displayed scaled; map client px back to buffer px.
+            const x = ((e.clientX - r.left) * (W / r.width)) | 0;
+            const y = ((e.clientY - r.top) * (H / r.height)) | 0;
+            M._fw_zoom(x, y, e.deltaY < 0 ? 1 : 0);
+            touch();
+          },
+          { passive: false },
+        );
+
+        let last: PointerEvent | null = null;
+        canvas.addEventListener('pointerdown', (e) => {
+          // ponytail: mouse only for now. Touch is a separate step.
+          if (e.pointerType === 'touch') return;
+          last = e;
+          canvas.setPointerCapture(e.pointerId);
+          canvas.classList.add('dragging');
+        });
+        canvas.addEventListener('pointermove', (e) => {
+          if (!last) return;
+          const r = canvas.getBoundingClientRect();
+          M._fw_pan_pixels(
+            (e.clientX - last.clientX) * (W / r.width),
+            (e.clientY - last.clientY) * (H / r.height),
+          );
+          last = e;
+          touch();
+        });
+        const endDrag = () => {
+          last = null;
+          canvas.classList.remove('dragging');
+        };
+        canvas.addEventListener('pointerup', endDrag);
+        canvas.addEventListener('pointercancel', endDrag);
+
+        // Scoped to the demo, not the window: the page must stay keyboard-usable.
+        canvas.addEventListener('keydown', (e) => {
+          if (e.metaKey || e.ctrlKey || e.altKey) return;
+          let ks = ARROWS[e.code] ?? LETTERS[e.code];
+          if (ks === undefined && /^Digit[1-6]$/.test(e.code)) {
+            ks = 0xffbe + (Number(e.code.slice(5)) - 1);
+          }
+          if (ks === undefined) return;
+          e.preventDefault();
+          key(ks);
+        });
+
+        setMode(1);
+      })
+      .catch(() => {
+        statusEl.hidden = false;
+        statusText.textContent =
+          'The renderer could not load. The source and a full write-up are linked below.';
+      });
+  }
+
+  // Lazy: 27 KB is cheap, but there is no reason to fetch it above the fold.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-fractol]')) {
+    const io = new IntersectionObserver(
+      (entries, obs) => {
+        if (!entries.some((en) => en.isIntersecting)) return;
+        obs.disconnect();
+        boot(root);
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(root);
+  }
+</script>
+
+<style>
+  .demo {
+    margin: 32px 0 8px;
+  }
+
+  .modes {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  button {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--ink-2);
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover {
+    border-color: var(--ink-2);
+    color: var(--ink);
+  }
+  /* Demo chrome stays greyscale — teal is reserved for "this is runnable". */
+  button[aria-pressed='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+
+  .stage {
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    image-rendering: pixelated;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    cursor: grab;
+    touch-action: pan-y;
+  }
+  canvas:focus-visible {
+    border-color: var(--live);
+  }
+  canvas.dragging {
+    cursor: grabbing;
+  }
+
+  .status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0 24px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    max-width: 800px;
+  }
+  /* display:flex above would otherwise beat the [hidden] attribute. */
+  .status[hidden] {
+    display: none;
+  }
+
+  .julia {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    max-width: 800px;
+  }
+  .julia[hidden] {
+    display: none;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cval {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .cval b {
+    color: var(--ink);
+  }
+
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .presets {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .presets button {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0 4px;
+    margin-right: 6px;
+  }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin-top: 12px;
+    max-width: 800px;
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .stats {
+    display: flex;
+    gap: 14px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .stats dt {
+    display: inline;
+  }
+  .stats dt::after {
+    content: ' ';
+  }
+  .stats dd {
+    display: inline;
+    margin: 0 0 0 3px;
+    color: var(--ink-2);
+  }
+
+  @media (max-width: 620px) {
+    .stats {
+      display: none;
+    }
+  }
+</style>

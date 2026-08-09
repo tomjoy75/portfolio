@@ -1,0 +1,83 @@
+---
+/**
+ * The visual anchor of the homepage. The positioning statement carries the first
+ * impression; the first featured project is allowed to sit below the fold.
+ * DIRECTION.md 4.3.
+ */
+import DemoBadge from './DemoBadge.astro';
+
+interface Props {
+  eyebrow: string;
+}
+
+const { eyebrow } = Astro.props;
+---
+
+<header class="hero">
+  <p class="meta eyebrow">{eyebrow}</p>
+
+  <h1>
+    I work <em>close to the machine</em> and close to the product.
+  </h1>
+
+  <p class="intro">
+    C and systems programming at one end, shipped web products and production backends at the
+    other. Previously a professional musician and live-performance administrator, which is where I
+    learned to ship to a date that does not move.
+  </p>
+
+  <p class="note">
+    <DemoBadge type="wasm" />
+    <span>One of these compiles my C to WebAssembly and runs on this page.</span>
+  </p>
+</header>
+
+<style>
+  .hero {
+    padding: 96px 0 66px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .eyebrow {
+    display: block;
+    margin: 0 0 26px;
+  }
+
+  h1 {
+    font-size: clamp(2.15rem, 3.9vw, 3.35rem);
+    letter-spacing: -0.034em;
+    font-weight: 690;
+    max-width: 19ch;
+    line-height: 1.06;
+  }
+
+  /* The one place teal appears outside project UI. DIRECTION.md 4.4. */
+  h1 em {
+    font-style: normal;
+    color: var(--live);
+  }
+
+  .intro {
+    margin: 28px 0 0;
+    max-width: 60ch;
+    font-size: 16.5px;
+    color: var(--ink-2);
+    line-height: 1.62;
+  }
+
+  .note {
+    margin: 30px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 13.5px;
+    color: var(--ink-2);
+  }
+
+  @media (max-width: 940px) {
+    .hero {
+      padding: 56px 0 40px;
+    }
+  }
+</style>
