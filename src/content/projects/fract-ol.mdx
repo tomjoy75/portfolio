@@ -14,8 +14,68 @@ links:
   repo: 'https://github.com/tomjoy75/Fractol'
 ---
 
-The fractals above are rendered by the same C that drives the native MiniLibX build.
+Fract-ol is a 42 project: render the Mandelbrot set, Julia sets and the Burning Ship
+fractal in C, with zoom, panning and a choice of colour palettes. Mine is about 800 lines
+across ten files, drawn through MiniLibX — the lightweight graphics wrapper used in 42
+projects.
 
-Seven source files compile to WebAssembly unchanged — the maths, the colour palettes, the zoom and pan arithmetic and the key handlers. Only the MiniLibX application layer is replaced, by around 150 lines of glue. Selecting a palette or nudging the Julia constant still executes the original handlers in `srcs/keys.c`; none of those constants are transcribed into JavaScript.
+It is also the project that made mathematics feel concrete again for me. The iteration
+z² + c had been a formula on a page. Here, changing a coordinate, an iteration count or a
+Julia constant changed something I could see, immediately. Dragging the Julia `c` around is
+the clearest version of that: the shape morphs continuously, and you are watching a
+parameter of an equation rather than a slider in a UI.
 
-A full write-up is still to come.
+## How the original works
+
+Every frame walks the pixel grid, maps each pixel to a point in the complex plane, and
+iterates until the value escapes a radius of 2 or hits the iteration cap. The escape count
+becomes a colour through a function pointer on the drawing state, so switching palettes is
+a pointer swap rather than a branch in the inner loop. Zooming does two things at once: it
+narrows the complex-plane bounds and raises the iteration count, because a deeper view needs
+more iterations before the structure resolves.
+
+MiniLibX barely appears in any of this. It shows up in thirteen call sites — create a
+window, get a pixel buffer, blit it, register input hooks. `t_img` is plain data, and
+writing a pixel is a pointer offset into a raw buffer.
+
+## Porting it, without rewriting it
+
+That small surface is why the browser version exists. A JavaScript Mandelbrot would prove
+nothing; the point was to make the actual C run in a browser. Seven files compile to
+WebAssembly **unchanged** — the fractal maths, the palettes, the zoom and pan arithmetic,
+and the key handlers. Only `main.c`, `input.c` and the native `render()` path are replaced,
+by roughly 150 lines of glue, plus two `#ifndef` guards in the originals. MiniLibX is not
+emulated: the glue points the image buffer at its own allocation and hands the address to
+`putImageData`.
+
+Input goes the same way. The browser translates events into X11 keysyms and pushes them
+into the original `srcs/keys.c`, so palette selection, panning and the five Julia presets
+still execute the original C implementation from the 42 project. None of those constants
+live in JavaScript.
+
+## Three things the port surfaced
+
+**Two latent assumptions in the original.** `encode_rgb()` packs colours as `0x00RRGGBB` —
+a zero alpha byte, invisible under X11, fully transparent to `putImageData`. And the
+hardcoded 2.7 × 2.4 complex-plane box only looks correct because 1080/960 is the same ratio;
+at any other canvas size the fractal renders stretched. Both were fixed in the glue rather
+than in the original sources.
+
+**Cost is not uniform.** At 800×600 and 200 iterations, the default Mandelbrot view renders
+in about 47 ms and Julia in about 8 ms, but a deep zoom at 757 iterations costs around
+643 ms. So the demo renders a 60-iteration preview while you are dragging and restores full
+quality once you stop. `-flto` was worth roughly 1.7× on its own, because it devirtualises
+the palette function pointer — called once per pixel — and the iteration callback, called
+once per *iteration*.
+
+**Measure in the conditions you ship in.** My first numbers were about 2.5× too slow. V8
+keeps WebAssembly in its baseline compilation tier while a debugger is attached, so every
+benchmark taken with DevTools open was measuring the wrong compiler.
+
+The browser keyboard needed real adaptation too: palettes moved from F1–F6 to digits 1–6,
+because the browser owns those function keys, and key matching uses `event.code`, since the
+original resolved keys through the first configured X layout and scattered WASD on AZERTY.
+
+What I take from it is narrower than "I learned C". It is that a clean boundary you did not
+plan for is still worth having. The port stayed relatively small because most of the
+rendering code never needed to know what a window was.
