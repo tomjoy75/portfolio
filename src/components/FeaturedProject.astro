@@ -5,7 +5,7 @@
  * DIRECTION.md 4.5.
  */
 import type { CollectionEntry } from 'astro:content';
-import { DOMAIN_LABELS, isRunnable } from '../lib/taxonomy';
+import { DOMAIN_LABELS, demoHref, isRunnable } from '../lib/taxonomy';
 import DemoBadge from './DemoBadge.astro';
 import TechTags from './TechTags.astro';
 
@@ -20,7 +20,12 @@ const contextLabel = context === '42' ? '42' : context === 'professional' ? 'Pro
 ---
 
 <article class="featured">
-  <a class="media-link" href={`/projects/${project.id}`} tabindex="-1" aria-hidden="true">
+  <a
+    class="media-link"
+    href={demoHref(project.id, demo.type) ?? `/projects/${project.id}`}
+    tabindex="-1"
+    aria-hidden="true"
+  >
     <div class:list={['media', runnable && 'runnable']}>
       {cover && <img src={cover} alt="" loading="lazy" />}
       {!cover && demo.type !== 'wasm' && <span class="media-todo">Media pending</span>}
@@ -39,7 +44,7 @@ const contextLabel = context === '42' ? '42' : context === 'professional' ? 'Pro
   <div class="body">
     <div class="head">
       <h3><a href={`/projects/${project.id}`}>{title}</a></h3>
-      <DemoBadge type={demo.type} label={demo.label} />
+      <DemoBadge type={demo.type} label={demo.label} href={demoHref(project.id, demo.type)} />
     </div>
 
     <p class="summary">{summary}</p>

@@ -29,4 +29,10 @@ const Demo =
     : undefined;
 ---
 
-{Demo && <Demo />}
+{
+  Demo && (
+    <div id="demo">
+      <Demo />
+    </div>
+  )
+}

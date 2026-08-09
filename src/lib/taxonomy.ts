@@ -32,3 +32,14 @@ export const DEMO_LABELS: Record<DemoType, string> = {
 };
 
 export const isRunnable = (type: DemoType) => RUNNABLE.includes(type);
+
+/**
+ * Where a demo badge links. One place, so the hero, the featured entry, the
+ * catalogue row and the project page all agree.
+ *
+ * Only `wasm` has an implemented demo today, so only `wasm` gets a destination.
+ * Anything else returns undefined and the badge renders inert rather than
+ * promising an interaction that does not exist.
+ */
+export const demoHref = (id: string, type: DemoType): string | undefined =>
+  type === 'wasm' ? `/projects/${id}/#demo` : undefined;

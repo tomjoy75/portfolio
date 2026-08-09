@@ -1,5 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
+import { demoHref } from '../lib/taxonomy';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
 import FeaturedProject from '../components/FeaturedProject.astro';
@@ -14,10 +15,14 @@ const featured = all
 const catalogue = all
   .filter((p) => !p.data.featured)
   .sort((a, b) => b.data.period.localeCompare(a.data.period));
+
+// The hero's claim is about the WASM demo, so point its badge at that project.
+const wasmProject = all.find((p) => p.data.demo.type === 'wasm');
+const heroDemoHref = wasmProject ? demoHref(wasmProject.id, 'wasm') : undefined;
 ---
 
 <BaseLayout>
-  <Hero eyebrow="Software Engineer · selected work 2023–2026" />
+  <Hero eyebrow="Software Engineer · selected work 2023–2026" demoHref={heroDemoHref} />
 
   <section class="section">
     <div class="section-head">

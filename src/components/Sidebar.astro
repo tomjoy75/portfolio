@@ -99,6 +99,9 @@ const { domainCounts, runnableCount } = Astro.props;
     height: 52px;
     border-radius: 50%;
     object-fit: cover;
+    /* The source is a 2:3 portrait with the face at ~27% of the height, so a
+       centred square crop cuts at the chin. Anchor to the top instead. */
+    object-position: center top;
     background: var(--sunk);
     flex: none;
   }

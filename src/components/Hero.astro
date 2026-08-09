@@ -8,9 +8,11 @@ import DemoBadge from './DemoBadge.astro';
 
 interface Props {
   eyebrow: string;
+  /** Destination for the "Run it here" badge. Omitted, the badge is inert. */
+  demoHref?: string;
 }
 
-const { eyebrow } = Astro.props;
+const { eyebrow, demoHref } = Astro.props;
 ---
 
 <header class="hero">
@@ -27,7 +29,7 @@ const { eyebrow } = Astro.props;
   </p>
 
   <p class="note">
-    <DemoBadge type="wasm" />
+    <DemoBadge type="wasm" href={demoHref} />
     <span>One of these compiles my C to WebAssembly and runs on this page.</span>
   </p>
 </header>

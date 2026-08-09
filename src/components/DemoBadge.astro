@@ -4,23 +4,38 @@ import { DEMO_LABELS, isRunnable, type DemoType } from '../lib/taxonomy';
 interface Props {
   type: DemoType;
   label?: string;
+  /**
+   * Destination for the badge. Given one, the badge is a real link with hover
+   * and focus affordance. Without one it renders as an inert span and must not
+   * look clickable — see the .static rules below.
+   */
+  href?: string;
 }
 
-const { type, label } = Astro.props;
+const { type, label, href } = Astro.props;
 const text = label ?? DEMO_LABELS[type];
 const runnable = isRunnable(type);
+const Tag = href ? 'a' : 'span';
 ---
 
 {
   type !== 'none' && (
-    <span class:list={['badge', runnable ? 'runnable' : 'neutral', type === 'wasm' && 'solid']}>
+    <Tag
+      href={href}
+      class:list={[
+        'badge',
+        runnable ? 'runnable' : 'neutral',
+        type === 'wasm' && 'solid',
+        href ? 'link' : 'static',
+      ]}
+    >
       {runnable && (
         <svg viewBox="0 0 10 10" aria-hidden="true">
           <path d="M1 0l8 5-8 5z" />
         </svg>
       )}
       {text}
-    </span>
+    </Tag>
   )
 }
 
@@ -35,6 +50,7 @@ const runnable = isRunnable(type);
     padding: 3px 9px;
     border-radius: 100px;
     white-space: nowrap;
+    text-decoration: none;
   }
 
   /* Neutral: readable, never teal. */
@@ -55,6 +71,27 @@ const runnable = isRunnable(type);
     color: #fff;
     border-color: var(--live);
     font-weight: 600;
+  }
+
+  /* Only linked badges get an interactive affordance. */
+  .link {
+    cursor: pointer;
+  }
+  .link:hover {
+    filter: brightness(1.08);
+  }
+  .solid.link:hover {
+    filter: brightness(1.12);
+  }
+  .neutral.link:hover {
+    color: var(--ink);
+    border-color: var(--ink-2);
+    filter: none;
+  }
+
+  /* Inert badges are labels, not calls to action. */
+  .static {
+    cursor: default;
   }
 
   svg {

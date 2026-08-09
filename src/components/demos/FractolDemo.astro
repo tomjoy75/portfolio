@@ -20,6 +20,7 @@ const DEMO_HEIGHT = 600;
     <button type="button" data-mode="1" aria-pressed="true">Mandelbrot</button>
     <button type="button" data-mode="2" aria-pressed="false">Julia</button>
     <button type="button" data-mode="3" aria-pressed="false">Burning ship</button>
+    <button type="button" class="reset" data-reset>Reset view</button>
   </div>
 
   <div class="stage">
@@ -190,9 +191,15 @@ const DEMO_HEIGHT = 600;
         }
 
         root.addEventListener('click', (e) => {
-          const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-mode],[data-key]');
+          const btn = (e.target as HTMLElement).closest<HTMLElement>(
+            '[data-mode],[data-key],[data-reset]',
+          );
           if (!btn) return;
-          if (btn.dataset.mode) setMode(Number(btn.dataset.mode));
+          // Reset re-initialises the current fractal: fw_init() runs
+          // define_drawing_zone(), which owns the starting bounds, zoom and
+          // iteration count. No view constants are repeated here.
+          if (btn.dataset.reset !== undefined) setMode(fractalMode);
+          else if (btn.dataset.mode) setMode(Number(btn.dataset.mode));
           else key(Number(btn.dataset.key));
         });
 
@@ -301,6 +308,15 @@ const DEMO_HEIGHT = 600;
     background: var(--ink);
     border-color: var(--ink);
     color: var(--paper);
+  }
+
+  /* An action, not a fractal choice — separated from the selection group. */
+  .reset {
+    margin-left: auto;
+    color: var(--muted);
+  }
+  .reset:hover {
+    color: var(--ink);
   }
 
   .stage {

@@ -26,7 +26,8 @@ const { title, summary, domain, tech, context, team, period, demo, links } = pro
 
     <div class="head">
       <h1>{title}</h1>
-      <DemoBadge type={demo.type} label={demo.label} />
+      {/* Same page: a plain anchor, so it scrolls rather than navigating. */}
+      <DemoBadge type={demo.type} label={demo.label} href={demo.type === 'wasm' ? '#demo' : undefined} />
     </div>
 
     <p class="summary">{summary}</p>
