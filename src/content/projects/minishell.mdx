@@ -16,4 +16,22 @@ links:
   repo: 'https://github.com/tomjoy75/minishell'
 ---
 
-Placeholder. Needs an asciinema recording of pipes, heredocs and signal handling before launch.
+minishell is a 42 project, built with a partner: a Unix shell in C with lexing, parsing,
+pipes, redirections, heredocs, signal handling and a set of builtins.
+
+My half was expansion — about 1,400 lines across thirteen files, and the part of a shell
+that looks trivial until you write it.
+
+`echo "hello $NAME"` and `echo 'hello $NAME'` differ by one character, and take different
+paths through four stages that run in a fixed order: parameter expansion, then field
+splitting on `IFS`, then pathname expansion, then quote removal.
+
+The order is the whole subject. Expanding a variable before splitting means a value
+containing a space becomes two arguments; splitting first means it never can. Removing
+quotes early would make `'$NAME'` expand anyway. Each of those is a bug I wrote before I
+understood why the sequence is what it is.
+
+What stayed with me is that the specification was there the entire time — POSIX describes
+exactly this order — and I still had to hit every case myself before the reasons landed. The
+standard is not arbitrary. It is a list of decisions somebody already made carefully, and
+reading it properly would have cost me a week less.

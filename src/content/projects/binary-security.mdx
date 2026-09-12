@@ -16,6 +16,22 @@ links:
   repo: 'https://github.com/tomjoy75/42-binary-security'
 ---
 
-Three 42 tracks presented as one body of work. Challenge secrets are redacted; the reasoning is not.
+Snow Crash, Rainfall and Override are three 42 security projects — thirty-nine levels in
+total, moving from Linux privilege escalation through stack and heap corruption to
+exploitation under tighter constraints. I wrote them up in full as I went: around twelve
+thousand words, level by level.
 
-Placeholder — the synthesis draws on ~12,500 words of existing level writeups.
+They are lab exercises against deliberately vulnerable binaries in a controlled environment,
+and that is worth stating plainly rather than leaving implied. This is coursework in how
+programs break. It is not professional offensive-security experience.
+
+What the levels actually teach is reading. Most of the time goes into `gdb` and a
+disassembler, working out what a program believes about its input and where that belief stops
+being true. The exploit is the short part.
+
+Rainfall level 3 is three lines of C: `fgets` into a buffer, `printf(buffer)`, then a
+comparison against a global. The bug is that `printf` was handed no format string of its own,
+so the input becomes one — and `%n` means a function whose job is printing can also write.
+
+The write-ups keep the reasoning and redact the flags. The path to each answer is the part
+that transfers; the answer itself is worth nothing.
