@@ -29,7 +29,21 @@ const DEMO_HEIGHT = 600;
       width={DEMO_WIDTH}
       height={DEMO_HEIGHT}
       tabindex="0"
-      aria-label="Fractal canvas. Scroll to zoom, drag to pan, arrow keys to step."></canvas>
+      aria-label="Fractal canvas. Drag or pinch to explore, arrow keys to step."></canvas>
+
+    <!--
+      Static frame for no-WASM and prefers-reduced-motion. Captured from the real
+      renderer, so it is the C code's output rather than an illustration. `src` is
+      set from JS only when the fallback is actually needed — at 136 KB there is no
+      reason to ship it to everyone whose browser runs the demo fine.
+    -->
+    <img
+      data-fallback
+      hidden
+      width={DEMO_WIDTH}
+      height={DEMO_HEIGHT}
+      alt="The Mandelbrot set rendered by the demo: a black cardioid and bud on a dark blue field, edged with filaments."
+    />
 
     <p class="status" data-status>
       <noscript>This demo needs JavaScript and WebAssembly.</noscript>
@@ -65,8 +79,11 @@ const DEMO_HEIGHT = 600;
 
   <div class="footer">
     <p class="hint">
-      Wheel to zoom · drag to pan · click the canvas, then arrows to step and
-      <kbd>1</kbd>–<kbd>6</kbd> for palettes
+      <span class="pointer-hint"
+        >Wheel to zoom · drag to pan · click the canvas, then arrows to step and
+        <kbd>1</kbd>–<kbd>6</kbd> for palettes</span
+      >
+      <span class="touch-hint">Drag to pan · pinch to zoom</span>
     </p>
     <dl class="stats" data-stats hidden>
       <dt>render</dt><dd data-ms>–</dd>
@@ -115,7 +132,46 @@ const DEMO_HEIGHT = 600;
     const statusText = $<HTMLElement>('[data-status-text]');
     const juliaPanel = $<HTMLElement>('[data-julia]');
     const stats = $<HTMLElement>('[data-stats]');
+    const fallback = $<HTMLImageElement>('[data-fallback]');
 
+    // Swaps the canvas for the captured frame. The src is assigned here rather
+    // than in the markup so the image is only fetched when it is actually shown.
+    function showFallback(message: string, offerOptIn: boolean) {
+      fallback.src = BASE + 'fallback.png';
+      fallback.hidden = false;
+      canvas.hidden = true;
+      statusEl.hidden = true;
+      root.querySelector('.modes')!.setAttribute('hidden', '');
+      statusText.textContent = message;
+
+      const note = document.createElement('p');
+      note.className = 'fallback-note';
+      note.textContent = message;
+      if (offerOptIn) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Run it anyway';
+        btn.addEventListener('click', () => {
+          note.remove();
+          fallback.hidden = true;
+          canvas.hidden = false;
+          root.querySelector('.modes')!.removeAttribute('hidden');
+          start();
+        });
+        note.append(' ', btn);
+      }
+      root.querySelector('.stage')!.after(note);
+    }
+
+    // Reduced motion is a preference, not an incapability — show the still frame
+    // by default, but never make it a dead end for someone who wants the demo.
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      showFallback('Shown as a still frame because your system asks for reduced motion.', true);
+      return;
+    }
+    start();
+
+    function start() {
     loadRuntime()
       .then((M) => {
         const W = canvas.width;
@@ -217,30 +273,75 @@ const DEMO_HEIGHT = 600;
           { passive: false },
         );
 
-        let last: PointerEvent | null = null;
-        canvas.addEventListener('pointerdown', (e) => {
-          // ponytail: mouse only for now. Touch is a separate step.
-          if (e.pointerType === 'touch') return;
-          last = e;
-          canvas.setPointerCapture(e.pointerId);
-          canvas.classList.add('dragging');
-        });
-        canvas.addEventListener('pointermove', (e) => {
-          if (!last) return;
-          const r = canvas.getBoundingClientRect();
-          M._fw_pan_pixels(
-            (e.clientX - last.clientX) * (W / r.width),
-            (e.clientY - last.clientY) * (H / r.height),
-          );
-          last = e;
-          touch();
-        });
-        const endDrag = () => {
-          last = null;
-          canvas.classList.remove('dragging');
+        // One pointer pans, two pinch. Mouse and touch share this path — a mouse
+        // simply never produces a second pointer.
+        const active = new Map<number, { x: number; y: number }>();
+        let pinchBase = 0;
+
+        const spread = () => {
+          const [a, b] = [...active.values()];
+          return Math.hypot(a.x - b.x, a.y - b.y);
         };
-        canvas.addEventListener('pointerup', endDrag);
-        canvas.addEventListener('pointercancel', endDrag);
+        const midpoint = () => {
+          const [a, b] = [...active.values()];
+          return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        };
+        // Canvas is displayed scaled; map client px back to buffer px.
+        const toBuffer = (x: number, y: number) => {
+          const r = canvas.getBoundingClientRect();
+          return { x: ((x - r.left) * (W / r.width)) | 0, y: ((y - r.top) * (H / r.height)) | 0 };
+        };
+
+        canvas.addEventListener('pointerdown', (e) => {
+          active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          canvas.setPointerCapture(e.pointerId);
+          if (active.size === 2) pinchBase = spread();
+          canvas.classList.toggle('dragging', active.size === 1);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+          const prev = active.get(e.pointerId);
+          if (!prev) return;
+          const next = { x: e.clientX, y: e.clientY };
+
+          if (active.size === 1) {
+            const r = canvas.getBoundingClientRect();
+            M._fw_pan_pixels(
+              (next.x - prev.x) * (W / r.width),
+              (next.y - prev.y) * (H / r.height),
+            );
+            active.set(e.pointerId, next);
+            touch();
+            return;
+          }
+
+          active.set(e.pointerId, next);
+          if (active.size !== 2) return;
+
+          // fw_zoom() is a discrete step, not a continuous scale, so a pinch is
+          // quantised: cross a ratio threshold, spend one step, re-anchor. The
+          // thresholds are deliberately wide — each step also ramps nb_iter, so
+          // an over-eager pinch is expensive as well as disorienting.
+          const now = spread();
+          const ratio = now / pinchBase;
+          if (ratio > 1.25 || ratio < 0.8) {
+            const m = midpoint();
+            const p = toBuffer(m.x, m.y);
+            M._fw_zoom(p.x, p.y, ratio > 1 ? 1 : 0);
+            pinchBase = now;
+            touch();
+          }
+        });
+
+        const release = (e: PointerEvent) => {
+          active.delete(e.pointerId);
+          // Dropping from two fingers to one: the survivor's stored position is
+          // current, so panning resumes from where it is rather than jumping.
+          if (active.size === 2) pinchBase = spread();
+          canvas.classList.toggle('dragging', active.size === 1);
+        };
+        canvas.addEventListener('pointerup', release);
+        canvas.addEventListener('pointercancel', release);
 
         // Scoped to the demo, not the window: the page must stay keyboard-usable.
         canvas.addEventListener('keydown', (e) => {
@@ -257,10 +358,12 @@ const DEMO_HEIGHT = 600;
         setMode(1);
       })
       .catch(() => {
-        statusEl.hidden = false;
-        statusText.textContent =
-          'The renderer could not load. The source and a full write-up are linked below.';
+        showFallback(
+          'The renderer could not load, so this is a still frame of its output. The source and a full write-up are linked below.',
+          false,
+        );
       });
+    }
   }
 
   // Lazy: 27 KB is cheap, but there is no reason to fetch it above the fold.
@@ -334,7 +437,19 @@ const DEMO_HEIGHT = 600;
     border: 1px solid var(--rule);
     border-radius: 7px;
     cursor: grab;
-    touch-action: pan-y;
+    /*
+      The canvas consumes its own gestures, otherwise a one-finger drag scrolls
+      the page instead of panning the fractal and the demo is inert on a phone.
+      ponytail: the trade is that you cannot scroll the page by swiping *on* the
+      canvas. Survivable here — the canvas is ~270px tall on a phone, with the
+      control row above it and the hint, stats and the rest of the article below,
+      so there is plenty of page left to scroll from. Revisit if it ever goes
+      full-bleed or full-height.
+    */
+    touch-action: none;
+  }
+  canvas[hidden] {
+    display: none;
   }
   canvas:focus-visible {
     border-color: var(--live);
@@ -431,6 +546,39 @@ const DEMO_HEIGHT = 600;
 
   .hint {
     margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  /* Tell people the gesture their device actually has. */
+  .touch-hint {
+    display: none;
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .pointer-hint {
+      display: none;
+    }
+    .touch-hint {
+      display: inline;
+    }
+  }
+
+  [data-fallback] {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+  }
+  [data-fallback][hidden] {
+    display: none;
+  }
+
+  .fallback-note {
+    margin: 10px 0 0;
+    max-width: 800px;
     font-size: 12.5px;
     color: var(--muted);
   }
