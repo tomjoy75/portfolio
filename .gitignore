@@ -22,3 +22,10 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# wayfinder maps and tickets — local working artifacts.
+# They quote the private evidence inventory; this repository is public.
+.scratch/
+
+# docs securisees
+.private/
