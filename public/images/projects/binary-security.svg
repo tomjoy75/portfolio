@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800" role="img"
+     aria-label="Rainfall level 3: the line printf(buffer) passes attacker-controlled input straight into printf as its format string.">
+  <style>
+    svg {
+      --paper: #f5f6f6;
+      --ink: #15181a;
+      --muted: #6a7275;
+      --rule: #e0e4e4;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --paper: #0f1213;
+        --ink: #ecefef;
+        --muted: #828b8d;
+        --rule: #262c2d;
+      }
+    }
+    .bg   { fill: var(--paper); }
+    .mono { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace; }
+    .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', sans-serif; }
+    .ink  { fill: var(--ink); }
+    .mut  { fill: var(--muted); }
+    .rule { stroke: var(--rule); }
+  </style>
+
+  <rect class="bg" width="1280" height="800"/>
+
+  <!--
+    Sized for the 216px media column in FeaturedProject, not for full width.
+    At that size a thumbnail carries one idea; everything competing with the
+    vulnerable line was cut rather than shrunk.
+  -->
+  <text class="mono mut" x="80" y="150" font-size="58" letter-spacing="4">RAINFALL · LEVEL 3</text>
+
+  <text class="mono ink" x="80" y="440" font-size="122" font-weight="600">printf(<tspan class="mut">buffer</tspan>);</text>
+
+  <text class="sans mut" x="80" y="620" font-size="70">no format of its own —</text>
+  <text class="sans mut" x="80" y="706" font-size="70">the input becomes one</text>
+</svg>
