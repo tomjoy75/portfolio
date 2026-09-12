@@ -16,6 +16,12 @@ interface Props {
 
 const { title = site.meta.title, description = site.meta.description } = Astro.props;
 
+// Built from Astro.site (astro.config.mjs) rather than the request, so the
+// canonical always points at the domain even when served from a preview URL.
+// Routes are directory-style, so pathname keeps its trailing slash and the
+// canonical resolves without a redirect hop.
+const canonical = new URL(Astro.url.pathname, Astro.site);
+
 // Facet counts are derived from content, never hand-maintained.
 const all = await getCollection('projects');
 const domainCounts = DOMAINS.map((domain: Domain) => ({
@@ -31,11 +37,13 @@ const runnableCount = all.filter((p) => isRunnable(p.data.demo.type)).length;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
   </head>
 
   <body>
