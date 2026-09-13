@@ -1,0 +1,85 @@
+---
+/**
+ * One built page per domain, plus one for the runnable set.
+ *
+ * Not `/projects?domain=…`: a statically built page cannot read a query string,
+ * and reading it client-side would mean shipping JS for navigation, which
+ * DIRECTION.md 5.4 reserves for the Fract-ol island. Not under `/projects/`
+ * either — that path belongs to the rest route `projects/[...slug].astro`, and
+ * a separate segment removes the ambiguity rather than relying on precedence.
+ */
+import { getCollection, type CollectionEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CatalogueTable from '../../components/CatalogueTable.astro';
+import { DOMAINS, DOMAIN_LABELS, isRunnable, type Domain } from '../../lib/taxonomy';
+
+export async function getStaticPaths() {
+  const all = await getCollection('projects');
+
+  const pages = DOMAINS.map((domain: Domain) => ({
+    params: { facet: domain },
+    props: {
+      heading: DOMAIN_LABELS[domain],
+      blurb: `Projects in ${DOMAIN_LABELS[domain].toLowerCase()}.`,
+      projects: all.filter((p) => p.data.domain === domain),
+    },
+  }));
+
+  pages.push({
+    params: { facet: 'runnable' },
+    props: {
+      heading: 'Runnable here',
+      blurb: 'Projects with a demo that runs in the browser, on this site.',
+      projects: all.filter((p) => isRunnable(p.data.demo.type)),
+    },
+  });
+
+  // A facet with nothing behind it is a dead end, not a filter.
+  return pages.filter((p) => p.props.projects.length > 0);
+}
+
+interface Props {
+  heading: string;
+  blurb: string;
+  projects: CollectionEntry<'projects'>[];
+}
+
+const { heading, blurb, projects } = Astro.props;
+---
+
+<BaseLayout title={`${heading} — Thomas Joyeux`} description={blurb}>
+  <section class="browse">
+    <p class="meta">
+      <a href="/">← All projects</a>
+    </p>
+
+    <h1>{heading}</h1>
+    <p class="blurb">{blurb} <span class="meta">{projects.length} of them.</span></p>
+
+    <CatalogueTable projects={projects} />
+  </section>
+</BaseLayout>
+
+<style>
+  .browse {
+    padding: 40px 0 0;
+  }
+
+  h1 {
+    margin: 14px 0 6px;
+  }
+
+  .blurb {
+    margin: 0 0 26px;
+    color: var(--ink-2);
+  }
+
+  /* The way back matters more here than anywhere else: a filtered page reached
+     from the persistent rail is otherwise a one-way trip. */
+  .meta a {
+    color: var(--muted);
+  }
+  .meta a:hover {
+    color: var(--ink);
+  }
+</style>

@@ -1,0 +1,73 @@
+---
+/**
+ * One built page per tech value that actually groups projects.
+ *
+ * 36 distinct values appear across the catalogue and 31 of them appear exactly
+ * once. A page listing a single project is a worse destination than the project
+ * page the reader already has, so those stay unlinked — see TECH_PAGE_MIN.
+ */
+import { getCollection, type CollectionEntry } from 'astro:content';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import CatalogueTable from '../../../components/CatalogueTable.astro';
+import { TECH_PAGE_MIN, techSlug } from '../../../lib/taxonomy';
+
+export async function getStaticPaths() {
+  const all = await getCollection('projects');
+
+  const byTech = new Map<string, { label: string; projects: CollectionEntry<'projects'>[] }>();
+  for (const project of all) {
+    for (const tech of project.data.tech) {
+      const slug = techSlug(tech);
+      if (!byTech.has(slug)) byTech.set(slug, { label: tech, projects: [] });
+      byTech.get(slug)!.projects.push(project);
+    }
+  }
+
+  return [...byTech.entries()]
+    .filter(([, v]) => v.projects.length >= TECH_PAGE_MIN)
+    .map(([slug, v]) => ({
+      params: { tech: slug },
+      props: { label: v.label, projects: v.projects },
+    }));
+}
+
+interface Props {
+  label: string;
+  projects: CollectionEntry<'projects'>[];
+}
+
+const { label, projects } = Astro.props;
+const blurb = `Projects built with ${label}.`;
+---
+
+<BaseLayout title={`${label} — Thomas Joyeux`} description={blurb}>
+  <section class="browse">
+    <p class="meta">
+      <a href="/">← All projects</a>
+    </p>
+
+    <h1>{label}</h1>
+    <p class="blurb">{blurb} <span class="meta">{projects.length} of them.</span></p>
+
+    <CatalogueTable projects={projects} />
+  </section>
+</BaseLayout>
+
+<style>
+  .browse {
+    padding: 40px 0 0;
+  }
+  h1 {
+    margin: 14px 0 6px;
+  }
+  .blurb {
+    margin: 0 0 26px;
+    color: var(--ink-2);
+  }
+  .meta a {
+    color: var(--muted);
+  }
+  .meta a:hover {
+    color: var(--ink);
+  }
+</style>

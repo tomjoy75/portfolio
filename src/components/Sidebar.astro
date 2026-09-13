@@ -5,7 +5,7 @@
  * CV is the only solid button on the page. DIRECTION.md 4.2.
  */
 import { site } from '../site.config';
-import { DOMAIN_LABELS, type Domain } from '../lib/taxonomy';
+import { DOMAIN_LABELS, browseHref, type Domain } from '../lib/taxonomy';
 
 interface Props {
   domainCounts: { domain: Domain; count: number }[];
@@ -13,6 +13,10 @@ interface Props {
 }
 
 const { domainCounts, runnableCount } = Astro.props;
+
+// The rail is on every page, so it is the only orientation a visitor gets:
+// mark where they are rather than leaving every facet looking unvisited.
+const here = Astro.url.pathname;
 ---
 
 <aside class="rail">
@@ -51,7 +55,10 @@ const { domainCounts, runnableCount } = Astro.props;
       {
         domainCounts.map(({ domain, count }) => (
           <li class="facet">
-            <a href={`/projects?domain=${domain}`}>
+            <a
+              href={browseHref(domain)}
+              aria-current={here === browseHref(domain) ? 'page' : undefined}
+            >
               <span class="dot" aria-hidden="true" />
               {DOMAIN_LABELS[domain]}
               <span class="count">{count}</span>
@@ -66,7 +73,10 @@ const { domainCounts, runnableCount } = Astro.props;
     <p class="meta facet-title">Try in the browser</p>
     <ul class="facet-list">
       <li class="facet">
-        <a href="/projects?runnable=1">
+        <a
+          href={browseHref('runnable')}
+          aria-current={here === browseHref('runnable') ? 'page' : undefined}
+        >
           <span class="dot on" aria-hidden="true"></span>
           Runnable here
           <span class="count">{runnableCount}</span>
@@ -280,5 +290,16 @@ const { domainCounts, runnableCount } = Astro.props;
     .count {
       margin-left: 4px;
     }
+  }
+</style>
+
+<style>
+  /* Where you are, in a rail that is otherwise identical on every page. */
+  .facet a[aria-current='page'] {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .facet a[aria-current='page'] .dot {
+    background: var(--ink);
   }
 </style>
