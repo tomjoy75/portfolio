@@ -78,9 +78,24 @@ img {
   viewport so the breakout cannot cause a horizontal scroll on a phone.
 */
 .prose figure {
-  width: min(880px, calc(100vw - 64px));
-  margin: 32px 0 32px 50%;
-  transform: translateX(-50%);
+  margin: 32px 0;
+  width: 100%;
+}
+
+/*
+  Above the rail breakpoint there is room to the right of the 68ch measure, so a
+  figure widens into it — left edge still aligned with the text.
+
+  It does NOT centre on the prose column: the measure is ~600px, so centring an
+  880px figure pushes 440px either side of a centre that only has ~300px to its
+  left, and the overflow lands on the sidebar. Growing rightwards only cannot do
+  that. The cap subtracts the rail and the column's own padding so the figure
+  stops at the content edge rather than at the window edge.
+*/
+@media (min-width: 941px) {
+  .prose figure {
+    width: min(880px, calc(100vw - var(--rail-width) - 88px));
+  }
 }
 
 .prose figure img {
