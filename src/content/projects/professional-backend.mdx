@@ -13,6 +13,67 @@ demo:
   type: diagram
 ---
 
-Placeholder. Sanitised architecture only: generic component names, the problems solved, the trade-offs made. No source, no private repository links.
+Serotonyn is a small startup, and I joined it as a backend intern for four months. Most of
+what I did was ordinary feature work. This is about the part that was not.
 
-Blocked on NDA review — see DIRECTION.md 3.6.
+## There was production, and there was a laptop
+
+When I arrived, the project deployed straight from a developer's machine to production. There
+was nothing in between — no place to rehearse a release, no way to watch a migration run
+before it ran for real. The consequence was not a dramatic outage. It was slowness. Work piled
+up for a month because shipping meant doing it live, and nobody wanted to be the one who did.
+
+So I built the thing that was missing. A dedicated staging environment, mapped explicitly to a
+`staging` branch, with its own configuration and its own data, so that merging produced a
+running copy of the product you could actually poke at. *Explicit* is the word doing the work
+there: the branch-to-environment mapping is written down rather than inferred, which is what
+makes it something you can rely on when you are nervous. A teammate had already added the
+toggle that lets a branch deploy at all. The environment, its configuration, and the release
+practice built on top of it are mine.
+
+## The migration that could not be run backwards
+
+We moved uploaded files off the hosting platform's own object storage and onto a European
+provider, for data residency and for cost.
+
+Copying the objects is the easy half. A copy *adds* something, and adding is safe: if it goes
+wrong, the originals are still there. The database half is not safe. Every row pointing at an
+old location had to point at a new one, and that rewrite overwrites the only record of where
+the file used to be. Run it, get it wrong, and the information you need to undo it went out
+with the change itself.
+
+So I specified the undo before writing the thing it undoes. A ledger: before any row is
+rewritten, what it held is appended to an append-only record. Replaying that ledger backwards
+puts every row back. The script fails the row rather than pressing on if the ledger write
+fails, which sounds pedantic until you say it out loud — a ledger with holes in it is worse
+than no ledger at all, because it tells you that you can go back when you cannot.
+
+I also folded the storage access into a single module that every call site goes through. That
+was not tidiness. It meant the migration had one place to be correct about. The long tail of
+findings that came out of review — ordering, permissions, what the client is allowed to see,
+filenames with accents in them — were each fixed once, in one file, instead of at every call
+site that had grown its own version.
+
+## The cutover
+
+A month of accumulated work had to land at the same time. I wrote the repository's first release runbook —
+until then the process lived as folklore and a page in a wiki: a
+variable-by-variable diff between environments, a preflight that runs read-only, and every
+step marked reversible or not reversible, because those are different kinds of fear and they
+deserve different handling. Writing it surfaced real bugs before the cutover did.
+
+Roughly six hundred commits went to production through it.
+
+The same instinct shows up in the smallest thing I wrote there: a test that fails when a
+database migration is not mirrored into the schema the tests build from. The mechanism was the
+team's. The guard that notices when the two drift apart is mine.
+
+## What I would say about it
+
+The migration is the part that sounds impressive, and the staging environment is the part that
+mattered. One is a script. The other is the reason anyone was willing to run it.
+
+I also learned what an undo is for, which is not what I assumed. Writing the reverse migration
+did not make me confident enough to run the forward one. It made me read the forward one
+properly, because you cannot reverse a change you have not understood. The undo is a thinking
+tool that happens to also be a safety net.
