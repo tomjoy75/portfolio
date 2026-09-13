@@ -21,6 +21,11 @@ built around real-time multiplayer Pong, with accounts, friends, tournaments and
 history around it. It was built by a team of four, each of us owning a distinct area. Mine
 was the backend — the REST API, its data model, and the authentication in front of both.
 
+<figure>
+  <img src="/images/projects/ft-transcendence-app.png" alt="The signed-in home screen: navigation across Home, Profile, Friends and Tournaments, with cards for the Pong arena and the leaderboard." loading="lazy" width="1400" height="580" />
+  <figcaption>The product the API sits behind. Screens are seeded with throwaway accounts.</figcaption>
+</figure>
+
 The system runs as containers behind nginx, which terminates TLS and splits traffic three
 ways: REST calls to the Fastify API, WebSocket traffic to the real-time Pong service, and a
 route to Grafana. The Pong service belonged to one teammate and the containerisation and
@@ -32,7 +37,17 @@ The API is roughly 2,000 lines of ESM JavaScript over SQLite, organised as domai
 modules — public, private, friendships, tournaments, matches — with cross-cutting concerns
 registered as Fastify plugins. Two parts are worth describing properly.
 
+<figure>
+  <img src="/images/projects/ft-transcendence-friends.png" alt="The friends list showing two accepted friends, with tabs for pending requests and for adding a friend." loading="lazy" width="1400" height="585" />
+  <figcaption>One of those domains: requests, acceptance, refusal and removal, each a state the row can be in.</figcaption>
+</figure>
+
 ## Users who are half authenticated
+
+<figure>
+  <img src="/images/projects/ft-transcendence-auth-flow.jpg" alt="Request and response pairs for signup, login, 2FA setup and 2FA login, each paired with the error codes the endpoint can return." loading="lazy" width="1400" height="1251" />
+  <figcaption>The flow as I drew it while building it — every exchange beside the errors it can answer with.</figcaption>
+</figure>
 
 With two-factor enabled, login cannot return a session token. The password is correct, but
 the second factor has not been presented, so the user is neither anonymous nor

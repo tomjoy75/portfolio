@@ -49,6 +49,18 @@ const here = Astro.url.pathname;
     </div>
   </div>
 
+  <nav class="facets home-facet" aria-label="All projects">
+    <ul class="facet-list">
+      <li class="facet">
+        <a href="/" aria-current={here === '/' ? 'page' : undefined}>
+          <span class="dot" aria-hidden="true"></span>
+          All projects
+          <span class="count">{domainCounts.reduce((n, d) => n + d.count, 0)}</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
   <nav class="facets" aria-label="Browse by domain">
     <p class="meta facet-title">Browse by domain</p>
     <ul class="facet-list">
@@ -294,6 +306,13 @@ const here = Astro.url.pathname;
 </style>
 
 <style>
+  /* The rail is the only navigation on the site, and until now it had no way
+     home: not the name, not the portrait, nothing. A filtered page or a project
+     page was a one-way trip unless you found the in-page link. */
+  .home-facet {
+    margin-bottom: 18px;
+  }
+
   /* Where you are, in a rail that is otherwise identical on every page. */
   .facet a[aria-current='page'] {
     color: var(--ink);
