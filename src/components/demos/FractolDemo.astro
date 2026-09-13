@@ -576,7 +576,14 @@ const DEMO_HEIGHT = 600;
     display: none;
   }
 
-  .fallback-note {
+  /*
+    :global() because this element is built in showFallback() at runtime, and
+    Astro scopes styles by stamping data-astro-cid onto markup at build time.
+    Scoped, the rule never matches and the note renders unstyled — which only
+    ever shows for the visitor who has reduced motion on or whose browser
+    failed to load the renderer.
+  */
+  :global(.fallback-note) {
     margin: 10px 0 0;
     max-width: 800px;
     font-size: 12.5px;

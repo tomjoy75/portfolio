@@ -1,9 +1,11 @@
 ---
 title: 'cub3d'
-summary: 'A Doom-style raycasting engine in C: map parsing, textured walls, sprites and player movement.'
+summary: 'A Doom-style raycasting engine in C, ported to WebAssembly — walk six maps in the browser and watch your position move through the map file.'
 domain: graphics
 tech: ['C', 'raycasting', 'MiniLibX']
 context: '42'
+featured: true
+featuredOrder: 2
 team: team
 period: '2024-10'
 demo:
@@ -13,4 +15,72 @@ links:
   repo: 'https://github.com/tomjoy75/cub3d'
 ---
 
-{/* Promote to featured when the WebAssembly port lands. Kept out of the rendered page: it is a planning note, not something a visitor should read. */}
+A Doom-style raycasting engine in C. It reads a plain-text map file and draws it as a
+textured 3D world you can walk around in — no 3D geometry anywhere, just one ray per screen
+column and a vertical strip of texture scaled by distance. Eight hundred columns, eight
+hundred rays, sixty times a second.
+
+**This was a two-person project, and the demo above shows the half that is not mine.** I
+wrote the parsing and the map layer: reading and validating the `.cub` file, the grid and
+its representation in memory, the allocation and the leak hunting, the test fixtures. My
+teammate wrote the raycasting — the mathematics that turns that grid into a view. The
+[repository](https://github.com/tomjoy75/cub3d)'s history carries the split: 47 of the 64
+commits are mine, and they are all on one side of that line.
+
+I say it here because the demo is his maths. What I can point at is the panel beside it:
+switch maps, and watch the highlighted character move through the text as you walk.
+
+## What a map file has to survive
+
+The `.cub` format is four wall textures, a floor colour, a ceiling colour, and a grid.
+`1` is wall, `0` is floor, `2` is a door, a space is outside the map.
+
+The grid is not required to be rectangular, and that is most of the work. A map has to be
+proven **closed** — no walkable tile may touch the void — on a shape with ragged edges,
+interior holes and lines of different lengths. Getting it wrong is not a cosmetic bug. A ray
+that escapes the map runs until it segfaults, and it will do that on the one map you did not
+test.
+
+So the repository has 35 `invalid_*.cub` files whose whole job is to be rejected: unclosed
+maps, duplicate identifiers, colours out of range, missing textures, bad characters, empty
+files. Four shell scripts run the binary against all of them, and against valgrind.
+
+## Porting it, without rewriting it
+
+MiniLibX is X11-based and cannot be built for a browser. It does not need to be. The whole
+surface this project uses is **thirteen functions**, and `t_img` is plain data — a width, a
+height, a bytes-per-pixel and a pointer. Everything downstream does pointer arithmetic on
+that pointer.
+
+So all twenty-three files in `srcs/` compile to WebAssembly **unchanged**. The port is a
+shim that hands back a buffer it owns, plus a replacement for `main.c`. There is one edit to
+an original: two `#ifndef` guards on the window dimensions, so the render size can come from
+the command line. The keysyms stay real X11 values, so the browser dispatches into the
+original `cb_start_game.c` and the key handling is the C code's, not JavaScript's.
+
+Even the file I/O survived: `cb_map_file.c` opens the map with `open(2)`, and emscripten's
+virtual filesystem means that works untouched.
+
+## What the second port taught that the first could not
+
+[Fract-ol](/projects/fract-ol) renders on demand, and I assumed a walkable maze would be the
+harder case: every frame, with texture sampling. It is not close. Fract-ol's inner loop runs
+up to 800 iterations *per pixel*; this casts one ray per *column*, and each ends after a
+handful of steps. The worst frame I measured is **0.64 ms** — the map with 3-megapixel sign
+textures, at 800×600, walking, with the minimap on. Against a 16 ms budget.
+
+The real problem was bytes. The twenty `.xpm` textures are 25 MB on disk, 51 MB as raw
+pixels, and my first build embedded them into a **26 MB** binary. But a texture is sampled
+one column at a time onto a wall a few hundred pixels tall, so nothing above 256 pixels is
+ever visible: one sign goes from 11.8 MB to 9 KB with no difference you can see. The demo
+ships 123 KB of code and 402 KB of textures.
+
+I also got the dirty flag backwards. The original only redraws when something changed —
+`cb_start_game.c` has kept that behind a flag since 2024 — and my first browser loop redrew
+forever, which would have kept this page busy in a background tab for as long as you left it
+open. The C was right and the JavaScript was undoing it.
+
+What I take from it is that the boundary that made this portable was not designed. Nobody
+planned for MiniLibX to be replaceable. It is replaceable because the rendering code never
+had a reason to know what a window was — and that is worth more than an abstraction written
+on purpose.
