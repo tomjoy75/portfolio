@@ -1,0 +1,624 @@
+---
+/**
+ * The cub3D WebAssembly demo.
+ *
+ * Every control routes through `cw_key(int keysym)` into the original
+ * `srcs/cb_start_game.c`. Movement, turning, doors and the minimap are the C
+ * code's — the on-screen buttons dispatch the same X11 keysyms the keyboard
+ * does, so there is one input path rather than two.
+ *
+ * The panel beside the viewport is the map's real source file, with the
+ * player's tile highlighted as they walk. That is the point of the demo: the
+ * text and the world are the same data.
+ *
+ * Artifacts live in public/demos/cub3d/ and load lazily on first scroll into
+ * view. See that folder's README for how to rebuild them.
+ */
+
+// Compiled into the wasm build (build_web.sh W/H). Changing these means a rebuild.
+const DEMO_WIDTH = 800;
+const DEMO_HEIGHT = 600;
+
+/** Shipped maps. The default is first. */
+const MAPS = [
+  { id: 'bonus_futur_du_retour_de_l_anterieur', label: 'maze' },
+  { id: 'bonus', label: 'bonus' },
+  { id: 'metal', label: 'metal' },
+  { id: 'signs', label: 'signs' },
+  { id: 'cubes_n_circles', label: 'cubes' },
+  { id: 'text', label: 'text' },
+];
+---
+
+<section class="demo" data-cub3d aria-label="Interactive cub3D renderer">
+  <div class="maps" role="group" aria-label="Map">
+    {
+      MAPS.map((m, i) => (
+        <button type="button" data-map={m.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+          {m.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <div class="split">
+    <div class="stage">
+      <canvas
+        data-canvas
+        width={DEMO_WIDTH}
+        height={DEMO_HEIGHT}
+        tabindex="0"
+        aria-label="cub3D viewport. Click it, then W A S D to move and arrow keys to turn."
+      ></canvas>
+
+      <!--
+        Static frame for no-WASM and prefers-reduced-motion. Captured from the
+        real renderer, so it is the C code's output rather than an illustration.
+        `src` is set from JS only when the fallback is actually needed.
+      -->
+      <img
+        data-fallback
+        hidden
+        width={DEMO_WIDTH}
+        height={DEMO_HEIGHT}
+        alt="A corridor of riveted metal walls receding to a red door, drawn by the raycaster."
+      />
+
+      <p class="status" data-status>
+        <noscript>This demo needs JavaScript and WebAssembly.</noscript>
+        <span data-status-text>Loading the renderer…</span>
+      </p>
+    </div>
+
+    <div class="panel">
+      <p class="meta" data-panel-title>the .cub file being rendered</p>
+      <pre data-source aria-live="off">–</pre>
+    </div>
+  </div>
+
+  <!--
+    Touch controls. Shown only where there is no fine pointer, so a narrow
+    window on a laptop keeps the keyboard. data-key values are X11 keysyms.
+  -->
+  <div class="pad" data-pad>
+    <div class="pad-row">
+      <button type="button" data-key="119" aria-label="Forward">↑</button>
+    </div>
+    <div class="pad-row">
+      <button type="button" data-key="97" aria-label="Strafe left">←</button>
+      <button type="button" data-key="115" aria-label="Back">↓</button>
+      <button type="button" data-key="100" aria-label="Strafe right">→</button>
+    </div>
+    <div class="pad-row">
+      <button type="button" data-key="65361" aria-label="Turn left">⟲</button>
+      <button type="button" data-key="32" data-tap aria-label="Open or close a door">door</button>
+      <button type="button" data-key="109" data-tap aria-label="Toggle the minimap">map</button>
+      <button type="button" data-key="65363" aria-label="Turn right">⟳</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p class="hint">
+      <span class="pointer-hint">
+        Click the view, then <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to move,
+        <kbd>←</kbd><kbd>→</kbd> to turn, <kbd>space</kbd> for doors, <kbd>M</kbd> for the minimap
+      </span>
+      <span class="touch-hint">Use the pad to walk · <b>door</b> opens what is in front of you</span>
+    </p>
+  </div>
+</section>
+
+<script>
+  const BASE = '/demos/cub3d/';
+
+  // X11 keysyms, matched on event.code rather than event.key: the original
+  // resolves keys through XkbKeycodeToKeysym(..., group 0), i.e. the first
+  // configured X layout, which scatters WASD on AZERTY.
+  const HELD: Record<string, number> = {
+    KeyW: 0x0077, KeyA: 0x0061, KeyS: 0x0073, KeyD: 0x0064,
+    ArrowLeft: 0xff51, ArrowRight: 0xff53,
+  };
+  const TAP: Record<string, number> = { KeyM: 0x006d, Space: 0x0020 };
+
+  function loadRuntime(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = BASE + 'cub3d.js';
+      s.onload = () => resolve((window as any).createCub3d({ locateFile: (p: string) => BASE + p }));
+      s.onerror = () => reject(new Error('failed to load ' + s.src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function boot(root: HTMLElement) {
+    const $ = <T extends Element>(sel: string) => root.querySelector(sel) as T;
+    const canvas = $<HTMLCanvasElement>('[data-canvas]');
+    const statusEl = $<HTMLElement>('[data-status]');
+    const statusText = $<HTMLElement>('[data-status-text]');
+    const sourceEl = $<HTMLElement>('[data-source]');
+    const fallback = $<HTMLImageElement>('[data-fallback]');
+    const pad = $<HTMLElement>('[data-pad]');
+
+    function showFallback(message: string, offerOptIn: boolean) {
+      fallback.src = BASE + 'fallback.png';
+      fallback.hidden = false;
+      canvas.hidden = true;
+      statusEl.hidden = true;
+      $<HTMLElement>('.maps').setAttribute('hidden', '');
+      pad.setAttribute('hidden', '');
+      $<HTMLElement>('.panel').setAttribute('hidden', '');
+
+      const note = document.createElement('p');
+      note.className = 'fallback-note';
+      note.textContent = message;
+      if (offerOptIn) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Run it anyway';
+        btn.addEventListener('click', () => {
+          note.remove();
+          fallback.hidden = true;
+          canvas.hidden = false;
+          $<HTMLElement>('.maps').removeAttribute('hidden');
+          pad.removeAttribute('hidden');
+          $<HTMLElement>('.panel').removeAttribute('hidden');
+          start();
+        });
+        note.append(' ', btn);
+      }
+      $<HTMLElement>('.split').after(note);
+    }
+
+    // Reduced motion is a preference, not an incapability — show the still
+    // frame by default, but never make it a dead end.
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      showFallback('Shown as a still frame because your system asks for reduced motion.', true);
+      return;
+    }
+    start();
+
+    function start() {
+      loadRuntime()
+        .then(async (M) => {
+          const W = canvas.width;
+          const H = canvas.height;
+          const ctx = canvas.getContext('2d', { alpha: false })!;
+          const image = ctx.createImageData(W, H);
+          const held = new Set<number>();
+          let ready = false;
+          let pending = false;
+          let source = '';
+          let gridTop = 0;
+
+          for (const d of ['maps', 'rgba']) {
+            try { M.FS.mkdir(d); } catch {}
+          }
+
+          // The engine opens its map with open(2) and asks the MiniLibX shim
+          // for each texture by path, so both are fetched and written into the
+          // virtual filesystem rather than changing either.
+          const fetched = new Set<string>();
+          async function texture(name: string) {
+            if (fetched.has(name)) return;
+            const res = await fetch(`${BASE}tex/${name}.png`);
+            if (!res.ok) return;
+            const bmp = await createImageBitmap(await res.blob());
+            const off = document.createElement('canvas');
+            off.width = bmp.width;
+            off.height = bmp.height;
+            off.getContext('2d')!.drawImage(bmp, 0, 0);
+            const px = off.getContext('2d')!.getImageData(0, 0, bmp.width, bmp.height).data;
+            // rgba/<name>.rgba: int32 w, int32 h, then R,G,B,X — the order the
+            // renderer writes, so the framebuffer needs no per-frame swap.
+            const out = new Uint8Array(8 + px.length);
+            const dv = new DataView(out.buffer);
+            dv.setInt32(0, bmp.width, true);
+            dv.setInt32(4, bmp.height, true);
+            for (let i = 0; i < px.length; i += 4) {
+              out[8 + i] = px[i];
+              out[9 + i] = px[i + 1];
+              out[10 + i] = px[i + 2];
+            }
+            M.FS.writeFile(`rgba/${name}.rgba`, out);
+            fetched.add(name);
+          }
+
+          const esc = (s: string) =>
+            s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+
+          // Highlights the tile the player is standing on, inside the map's own
+          // source text.
+          function paintSource() {
+            const px = Math.floor(M._cw_player_x());
+            const py = Math.floor(M._cw_player_y());
+            sourceEl.innerHTML = source
+              .split('\n')
+              .map((line, i) => {
+                if (i - gridTop !== py) return esc(line);
+                const ch = line[px];
+                if (ch === undefined) return esc(line);
+                return `${esc(line.slice(0, px))}<mark>${ch === ' ' ? '&nbsp;' : esc(ch)}</mark>${esc(line.slice(px + 1))}`;
+              })
+              .join('\n');
+          }
+
+          // Renders only while something is changing. The engine already works
+          // this way — cb_start_game.c sits behind a data->update_win dirty
+          // flag — and a free-running loop would undo that, keeping the page
+          // busy in a background tab for as long as it is open.
+          function frame() {
+            pending = false;
+            if (!ready) return;
+            for (const ks of held) M._cw_key(ks);
+            M._cw_frame_rgba();
+            const ptr = M._cw_buffer();
+            image.data.set(M.HEAPU8.subarray(ptr, ptr + W * H * 4));
+            ctx.putImageData(image, 0, 0);
+            paintSource();
+            if (held.size) schedule();
+          }
+
+          function schedule() {
+            if (pending || !ready) return;
+            pending = true;
+            requestAnimationFrame(frame);
+          }
+
+          async function load(id: string) {
+            ready = false;
+            M._cw_destroy();
+            statusEl.hidden = false;
+            statusText.textContent = 'Loading the map…';
+
+            source = await (await fetch(`${BASE}maps/${id}.cub`)).text();
+            M.FS.writeFile(`maps/${id}.cub`, source);
+            const walls = [...source.matchAll(/^(?:NO|SO|WE|EA)\s+\S*?(\w+)\.xpm/gm)].map((m) => m[1]);
+            await Promise.all([...new Set([...walls, 'door', 'sprite'])].map(texture));
+
+            const path = M.allocateUTF8 ? M.allocateUTF8(`maps/${id}.cub`) : 0;
+            const ok = M.ccall('cw_init', 'number', ['string'], [`maps/${id}.cub`]) === 0;
+            if (path) M._free(path);
+            if (!ok) {
+              statusText.textContent = 'That map failed to load.';
+              return;
+            }
+            // The grid starts at the first line that is only map characters;
+            // everything above it is texture paths and colours.
+            const lines = source.split('\n');
+            gridTop = lines.findIndex((l) => /^[\s012NSEW]+$/.test(l) && l.includes('1'));
+            for (const b of root.querySelectorAll<HTMLElement>('[data-map]')) {
+              b.setAttribute('aria-pressed', String(b.dataset.map === id));
+            }
+            statusEl.hidden = true;
+            ready = true;
+            schedule();
+          }
+
+          root.addEventListener('click', (e) => {
+            const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-map]');
+            if (!btn) return;
+            load(btn.dataset.map!);
+            canvas.focus();
+          });
+
+          // Scoped to the canvas, not the window: arrow keys must keep
+          // scrolling the page for anyone who has not asked to walk.
+          canvas.addEventListener('keydown', (e) => {
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            const hold = HELD[e.code];
+            if (hold !== undefined) {
+              held.add(hold);
+              e.preventDefault();
+              schedule(); // a tap can start and end between frames
+              return;
+            }
+            const tap = TAP[e.code];
+            if (tap === undefined) return;
+            M._cw_key(tap);
+            e.preventDefault();
+            schedule();
+          });
+          canvas.addEventListener('keyup', (e) => {
+            const hold = HELD[e.code];
+            if (hold !== undefined) held.delete(hold);
+          });
+          canvas.addEventListener('blur', () => {
+            held.clear();
+            statusEl.hidden = false;
+            statusText.textContent = 'Click the view to walk.';
+          });
+          canvas.addEventListener('focus', () => {
+            statusEl.hidden = true;
+          });
+
+          // Touch pad. pointercancel and pointerleave matter as much as
+          // pointerup: a finger dragged off a button would otherwise leave the
+          // player walking forever.
+          pad.addEventListener('pointerdown', (e) => {
+            const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-key]');
+            if (!btn) return;
+            e.preventDefault();
+            const ks = Number(btn.dataset.key);
+            if (btn.dataset.tap !== undefined) M._cw_key(ks);
+            else held.add(ks);
+            schedule();
+          });
+          const release = (e: PointerEvent) => {
+            const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-key]');
+            if (btn) held.delete(Number(btn.dataset.key));
+          };
+          for (const ev of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+            pad.addEventListener(ev, release);
+          }
+
+          await load(root.querySelector<HTMLElement>('[data-map]')!.dataset.map!);
+        })
+        .catch(() => {
+          showFallback(
+            'The renderer could not load, so this is a still frame of its output. The source and a full write-up are linked below.',
+            false,
+          );
+        });
+    }
+  }
+
+  // Lazy: the artifacts are small, but there is no reason to fetch them above
+  // the fold.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-cub3d]')) {
+    const io = new IntersectionObserver(
+      (entries, obs) => {
+        if (!entries.some((en) => en.isIntersecting)) return;
+        obs.disconnect();
+        boot(root);
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(root);
+  }
+</script>
+
+<style>
+  .demo {
+    margin: 32px 0 8px;
+  }
+
+  .maps {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .maps[hidden] {
+    display: none;
+  }
+
+  button {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--ink-2);
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover {
+    border-color: var(--ink-2);
+    color: var(--ink);
+  }
+  /* Demo chrome stays greyscale — teal is reserved for "this is runnable". */
+  button[aria-pressed='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+
+  /*
+    The viewport and the map source sit side by side, because the whole claim
+    of this demo is that they are the same data. Below 900px the text goes
+    under the view rather than shrinking into unreadability.
+  */
+  .split {
+    display: grid;
+    /*
+      Both columns are fractional: the article column is narrower than the
+      canvas's 800px backing store, so a fixed track here squeezes the source
+      panel to a sliver. The canvas scales down instead — it is width:100% over
+      a fixed aspect ratio, so the render size is unaffected.
+    */
+    grid-template-columns: minmax(0, 1.7fr) minmax(190px, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .stage {
+    position: relative;
+    min-width: 0;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    cursor: pointer;
+    /*
+      The canvas consumes its own gestures so a thumb on the view does not
+      scroll the page mid-stride. Scoped to the canvas only, never the page —
+      the map tabs, the source panel and the article below are all still
+      scrollable.
+    */
+    touch-action: none;
+  }
+  canvas[hidden] {
+    display: none;
+  }
+  canvas:focus-visible {
+    border-color: var(--live);
+  }
+
+  .status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0 24px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    max-width: 800px;
+  }
+  /* display:flex above would otherwise beat the [hidden] attribute. */
+  .status[hidden] {
+    display: none;
+  }
+
+  .panel {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .panel[hidden] {
+    display: none;
+  }
+
+  .meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  [data-source] {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    line-height: 1.35;
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--ink-2);
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    overflow: auto;
+    max-height: 420px;
+    white-space: pre;
+  }
+  /*
+    The one place the demo marks a position. Inverted rather than tinted so it
+    survives both themes without a colour of its own — teal would read as
+    "runnable", which this is not.
+
+    :global() is load-bearing. Astro scopes styles by stamping a data-astro-cid
+    attribute onto the markup at build time, and this <mark> is created at
+    runtime by paintSource(), so it never gets one. Without :global() the rule
+    simply does not match and the marker falls back to the browser's default
+    yellow highlight.
+  */
+  [data-source] :global(mark) {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 2px;
+  }
+
+  /* Touch only: a narrow window on a laptop keeps the keyboard. */
+  .pad {
+    display: none;
+  }
+  .pad[hidden] {
+    display: none;
+  }
+  .pad-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+  .pad button {
+    min-width: 56px;
+    padding: 10px 12px;
+    font-size: 15px;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .footer {
+    margin-top: 12px;
+    max-width: 800px;
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin: 0 1px;
+  }
+
+  /* Tell people the controls their device actually has. */
+  .touch-hint {
+    display: none;
+  }
+  @media (hover: none) and (pointer: coarse) {
+    .pointer-hint {
+      display: none;
+    }
+    .touch-hint {
+      display: inline;
+    }
+    .pad {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .pad[hidden] {
+      display: none;
+    }
+    /* The source panel is the second thing on a phone, not a sidebar. */
+    [data-source] {
+      max-height: 220px;
+    }
+  }
+
+  [data-fallback] {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+  }
+  [data-fallback][hidden] {
+    display: none;
+  }
+
+  /* Also built at runtime, so also :global() — see the note on mark above. */
+  :global(.fallback-note) {
+    margin: 10px 0 0;
+    max-width: 800px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+</style>

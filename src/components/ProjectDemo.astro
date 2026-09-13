@@ -11,6 +11,7 @@
  */
 import type { CollectionEntry } from 'astro:content';
 import FractolDemo from './demos/FractolDemo.astro';
+import Cub3dDemo from './demos/Cub3dDemo.astro';
 
 interface Props {
   project: CollectionEntry<'projects'>;
@@ -21,6 +22,7 @@ const { project } = Astro.props;
 /** Project id -> demo component. Keyed by id so no schema field is needed. */
 const WASM_DEMOS = {
   'fract-ol': FractolDemo,
+  cub3d: Cub3dDemo,
 } as const;
 
 const Demo =
