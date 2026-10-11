@@ -10,7 +10,8 @@ export const site = {
   portrait: '/images/profile/thomas.jpg',
 
   /** Primary action. Everything else on the page is secondary to this. */
-  cv: '/thomas-joyeux-cv.pdf',
+  // Temporarily null: the published PDF is out of date. Restore '/thomas-joyeux-cv.pdf' with a current one.
+  cv: null as string | null,
 
   links: {
     github: 'https://github.com/tomjoy75',
